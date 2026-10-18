@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GTA5MAPS</title>
+    <style>
+    body {
+        margin: 0;
+        padding: 20px;
+        background-color: rgb(58, 75, 82); /* Цвет океана */
+        display: flex;
+        justify-content: center;
+        /* ИСПРАВЛЕНИЕ ДЛЯ МОБИЛЬНЫХ: не дает контенту ломать границы экрана */
+        overflow-x: hidden; 
+    }
+
+    /* Контейнер карты */
+    .map-container {
+        position: relative;
+        width: 684px;  
+        height: 1017px; 
+        
+        /* ИСПРАВЛЕНИЕ ДЛЯ МОБИЛЬНЫХ: предотвращает жесткое растягивание и искажение пропорций */
+        max-width: 100%;
+        height: auto;
+        aspect-ratio: 684 / 1017;
+
+        transform-origin: 0 0;
+        transform: translate(var(--zoom-x, 0px), var(--zoom-y, 0px)) scale(var(--map-scale, 1));
+        transition: transform 0.1s ease-out;
+    }
+
+    /* Картинка подложки карты */
+    .map-image {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+
+    /* Общий стиль для всех меток */
+    .marker {
+        position: absolute;
+        width: calc(12px / (var(--map-scale, 1) * var(--mobile-zoom, 1)));
+        aspect-ratio: 1 / 1; 
+        border: calc(2px / (var(--map-scale, 1) * var(--mobile-zoom, 1))) solid #ff00bf;
+        background-color: red;
+        border-radius: 50%;
+        transform: translate(-50%, -50%); 
+        cursor: pointer;
+        z-index: 10;
+        box-sizing: border-box; 
+    }
+
+    /* Стиль для карт */
+    .marker.piece {
+        background-color: #ff00bf;
+    }
+
+    /* Стиль всплывающего окна с текстом */
+    .marker::after {
+        content: attr(data-title);
+        position: absolute;
+        bottom: 25px; 
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(20, 20, 20, 0.95); 
+        color: white;
+        padding: 8px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: Arial, sans-serif;
+        white-space: pre-line; 
+        display: none; 
+        z-index: 20;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        border: 1px solid #ff00bf; 
+        text-align: center;
+    }
+
+    .marker:hover::after { display: block; }
+    .marker.show-screenshot:hover::after { display: none; }
+
+    /* БАЗОВЫЙ СТИЛЬ СКРИНШОТА (Здесь основные исправления) */
+    .marker img {
+        display: none;
+        position: absolute;
+        bottom: 25px; 
+        left: 50%;
+        transform: translateX(-50%);
+        
+        /* Вычисляемая ширина скриншота */
+        width: calc(320px / (var(--map-scale, 1) * var(--mobile-zoom, 1)));
+        
+        /* ИСПРАВЛЕНИЕ ДЛЯ ПК: Картинка сжимается вслед за зумом, но НЕ МЕНЬШЕ 220px. 
+           Это создаст красивый предел при отдалении карты */
+        min-width: 130px; 
+        /* Ограничитель сверху, чтобы при огромном приближении картинка не перекрывала всё */
+        max-width: 450px; 
+
+        aspect-ratio: 16 / 9; 
+        height: auto; 
+        
+        border: calc(2px / (var(--map-scale, 1) * var(--mobile-zoom, 1))) solid #ff00bf;
+        border-radius: 6px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.7);
+        z-index: 100;
+        pointer-events: none; 
+        object-fit: cover;
+    }
+
+    /* Класс показа скрина */
+    .marker.show-screenshot img {
+        display: block;
+        animation: fadeIn 0.2s ease-in-out;
+    }
+
+    .marker.show-screenshot { z-index: 9999; }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateX(-50%) translateY(5px); }
+        to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+
+    .marker.piece.collected {
+        background-color: rgba(102, 102, 102, 0.5); 
+        border: 1px solid rgba(153, 153, 153, 0.5); 
+        box-shadow: none;                            
+    }
+
+    .marker.piece.collected img {
+        opacity: 1 !important;
+        filter: none !important;
+    }
+
+</style>
+
+
+</head>
+<body>
+    <!-- Контейнер с картой -->
+    <div class="map-container"> 
+        <!-- Картинка фона -->
+        <img src="./map.jpg" alt="Карта" class="map-image">  
+        <!-- ТОЧНЫЕ метки -->
+<div class="marker piece" id="piece_1" style="left: 35.7%; top: 84.0%;" data-title="Фигурка 1"><img data-src="./piece/ 1.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_2" style="left: 36.2%; top: 77.8%;" data-title="Фигурка 2"><img data-src="./pieces/2.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_3" style="left: 45.3%; top: 80.8%;" data-title="Фигурка 3"><img data-src="./pieces/3.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_4" style="left: 47.7%; top: 84.9%;" data-title="Фигурка 4"><img data-src="./pieces/4.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_5" style="left: 51.3%; top: 85.2%;" data-title="Фигурка 5"><img data-src="./pieces/5.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_6" style="left: 59.9%; top: 81.2%;" data-title="Фигурка 6"><img data-src="./pieces/6.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_7" style="left: 55.8%; top: 78.2%;" data-title="Фигурка 7"><img data-src="./pieces/7.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_8" style="left: 50.1%; top: 77.9%;" data-title="Фигурка 8"><img data-src="./pieces/8.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_9" style="left: 45.3%; top: 75.1%;" data-title="Фигурка 9"><img data-src="./pieces/9.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_10" style="left: 62.7%; top: 78.0%;" data-title="Фигурка 10"><img data-src="./pieces/10.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_11" style="left: 59.2%; top: 73.1%;" data-title="Фигурка 11"><img data-src="./pieces/11.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_12" style="left: 53.6%; top: 73.4%;" data-title="Фигурка 12"><img data-src="./pieces/12.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_13" style="left: 50.2%; top: 73.4%;" data-title="Фигурка 13"><img data-src="./pieces/13.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_14" style="left: 45.3%; top: 72.9%;" data-title="Фигурка 14"><img data-src="./pieces/14.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_15" style="left: 48.1%; top: 71.1%;" data-title="Фигурка 15"><img data-src="./pieces/15.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_16" style="left: 53.3%; top: 69.9%;" data-title="Фигурка 16"><img data-src="./pieces/16.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_17" style="left: 36.0%; top: 70.7%;" data-title="Фигурка 17"><img data-src="./pieces/17.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_18" style="left: 31.1%; top: 73.7%;" data-title="Фигурка 18"><img data-src="./pieces/18.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_19" style="left: 27.7%; top: 70.2%;" data-title="Фигурка 19"><img data-src="./pieces/19.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_20" style="left: 51.1%; top: 67.8%;" data-title="Фигурка 20"><img data-src="./pieces/20.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_21" style="left: 58.5%; top: 67.0%;" data-title="Фигурка 21"><img data-src="./pieces/21.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_22" style="left: 52.6%; top: 65.2%;" data-title="Фигурка 22"><img data-src="./pieces/22.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_23" style="left: 47.9%; top: 66.2%;" data-title="Фигурка 23"><img data-src="./pieces/23.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_24" style="left: 44.7%; top: 68.6%;" data-title="Фигурка 24"><img data-src="./pieces/24.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_25" style="left: 43.9%; top: 66.8%;" data-title="Фигурка 25"><img data-src="./pieces/25.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_26" style="left: 38.1%; top: 68.9%;" data-title="Фигурка 26"><img data-src="./pieces/26.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_27" style="left: 53.2%; top: 58.3%;" data-title="Фигурка 27"><img data-src="./pieces/27.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_28" style="left: 64.4%; top: 62.1%;" data-title="Фигурка 28"><img data-src="./pieces/28.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_29" style="left: 46.9%; top: 56.2%;" data-title="Фигурка 29"><img data-src="./pieces/29.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_30" style="left: 45.0%; top: 55.2%;" data-title="Фигурка 30"><img data-src="./pieces/30.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_31" style="left: 41.0%; top: 50.3%;" data-title="Фигурка 31"><img data-src="./pieces/31.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_32" style="left: 37.3%; top: 55.6%;" data-title="Фигурка 32"><img data-src="./pieces/32.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_33" style="left: 40.4%; top: 59.3%;" data-title="Фигурка 33"><img data-src="./pieces/33.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_34" style="left: 44.4%; top: 60.5%;" data-title="Фигурка 34"><img data-src="./pieces/34.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_35" style="left: 48.5%; top: 61.4%;" data-title="Фигурка 35"><img data-src="./pieces/35.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_36" style="left: 57.0%; top: 63.2%;" data-title="Фигурка 36"><img data-src="./pieces/36.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_37" style="left: 29.4%; top: 56.1%;" data-title="Фигурка 37"><img data-src="./pieces/37.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_38" style="left: 39.3%; top: 46.5%;" data-title="Фигурка 38"><img data-src="./pieces/38.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_39" style="left: 45.3%; top: 47.8%;" data-title="Фигурка 39"><img data-src="./pieces/39.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_40" style="left: 29.2%; top: 51.0%;" data-title="Фигурка 40"><img data-src="./pieces/40.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_41" style="left: 25.0%; top: 47.0%;" data-title="Фигурка 41"><img data-src="./pieces/41.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_42" style="left: 53.6%; top: 53.2%;" data-title="Фигурка 42"><img data-src="./pieces/42.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_43" style="left: 61.7%; top: 53.5%;" data-title="Фигурка 43"><img data-src="./pieces/43.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_44" style="left: 55.5%; top: 46.0%;" data-title="Фигурка 44"><img data-src="./pieces/44.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_45" style="left: 61.6%; top: 46.2%;" data-title="Фигурка 45"><img data-src="./pieces/45.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_46" style="left: 59.1%; top: 42.6%;" data-title="Фигурка 46"><img data-src="./pieces/46.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_47" style="left: 66.7%; top: 42.0%;" data-title="Фигурка 47"><img data-src="./pieces/47.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_48" style="left: 51.8%; top: 39.3%;" data-title="Фигурка 48"><img data-src="./pieces/48.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_49" style="left: 64.9%; top: 37.7%;" data-title="Фигурка 49"><img data-src="./pieces/49.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_50" style="left: 75.3%; top: 40.4%;" data-title="Фигурка 50"><img data-src="./pieces/50.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_51" style="left: 72.5%; top: 39.5%;" data-title="Фигурка 51"><img data-src="./pieces/51.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_52" style="left: 85.0%; top: 34.3%;" data-title="Фигурка 52"><img data-src="./pieces/52.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_53" style="left: 76.2%; top: 31.4%;" data-title="Фигурка 53"><img data-src="./pieces/53.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_54" style="left: 88.3%; top: 28.9%;" data-title="Фигурка 54"><img data-src="./pieces/54.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_55" style="left: 78.6%; top: 27.8%;" data-title="Фигурка 55"><img data-src="./pieces/55.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_56" style="left: 60.4%; top: 30.2%;" data-title="Фигурка 56"><img data-src="./pieces/56.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_57" style="left: 64.9%; top: 26.5%;" data-title="Фигурка 57"><img data-src="./pieces/57.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_58" style="left: 72.9%; top: 25.1%;" data-title="Фигурка 58"><img data-src="./pieces/58.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_59" style="left: 82.7%; top: 23.7%;" data-title="Фигурка 59"><img data-src="./pieces/59.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_60" style="left: 70.6%; top: 20.5%;" data-title="Фигурка 60"><img data-src="./pieces/60.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_61" style="left: 51.0%; top: 20.9%;" data-title="Фигурка 61"><img data-src="./pieces/61.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_62" style="left: 63.1%; top: 15.2%;" data-title="Фигурка 62"><img data-src="./pieces/62.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_63" style="left: 60.5%; top: 13.5%;" data-title="Фигурка 63"><img data-src="./pieces/63.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_64" style="left: 47.9%; top: 14.8%;" data-title="Фигурка 64"><img data-src="./pieces/64.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_65" style="left: 42.5%; top: 15.4%;" data-title="Фигурка 65"><img data-src="./pieces/65.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_66" style="left: 38.4%; top: 18.9%;" data-title="Фигурка 66"><img data-src="./pieces/66.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_67" style="left: 40.0%; top: 22.6%;" data-title="Фигурка 67"><img data-src="./pieces/67.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_68" style="left: 33.5%; top: 25.3%;" data-title="Фигурка 68"><img data-src="./pieces/68.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_69" style="left: 21.9%; top: 23.6%;" data-title="Фигурка 69"><img data-src="./pieces/69.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_70" style="left: 22.3%; top: 36.6%;" data-title="Фигурка 70"><img data-src="./pieces/70.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_71" style="left: 27.6%; top: 39.7%;" data-title="Фигурка 71"><img data-src="./pieces/71.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_72" style="left: 31.7%; top: 43.2%;" data-title="Фигурка 72"><img data-src="./pieces/72.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_73" style="left: 17.6%; top: 45.1%;" data-title="Фигурка 73"><img data-src="./pieces/73.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_74" style="left: 46.8%; top: 34.7%;" data-title="Фигурка 74"><img data-src="./pieces/74.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_75" style="left: 61.5%; top: 35.4%;" data-title="Фигурка 75"><img data-src="./pieces/75.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_76" style="left: 66.9%; top: 33.2%;" data-title="Фигурка 76"><img data-src="./pieces/76.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_77" style="left: 73.6%; top: 34.2%;" data-title="Фигурка 77"><img data-src="./pieces/77.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_78" style="left: 42.7%; top: 40.9%;" data-title="Фигурка 78"><img data-src="./pieces/78.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_79" style="left: 50.4%; top: 43.0%;" data-title="Фигурка 79"><img data-src="./pieces/79.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_80" style="left: 21.2%; top: 60.3%;" data-title="Фигурка 80"><img data-src="./pieces/80.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_81" style="left:  9.9%; top: 54.8%;" data-title="Фигурка 81"><img data-src="./pieces/81.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_82" style="left: 13.0%; top: 59.3%;" data-title="Фигурка 82"><img data-src="./pieces/82.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_83" style="left: 12.6%; top: 61.8%;" data-title="Фигурка 83"><img data-src="./pieces/83.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_84" style="left: 25.9%; top: 59.0%;" data-title="Фигурка 84"><img data-src="./pieces/84.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_85" style="left: 29.8%; top: 60.6%;" data-title="Фигурка 85"><img data-src="./pieces/85.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_86" style="left: 35.3%; top: 62.9%;" data-title="Фигурка 86"><img data-src="./pieces/86.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_87" style="left: 34.5%; top: 60.7%;" data-title="Фигурка 87"><img data-src="./pieces/87.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_88" style="left: 26.9%; top: 63.9%;" data-title="Фигурка 88"><img data-src="./pieces/88.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_89" style="left: 28.7%; top: 65.5%;" data-title="Фигурка 89"><img data-src="./pieces/89.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_90" style="left: 24.9%; top: 67.1%;" data-title="Фигурка 90"><img data-src="./pieces/90.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_91" style="left: 32.6%; top: 69.1%;" data-title="Фигурка 91"><img data-src="./pieces/91.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_92" style="left: 34.4%; top: 66.0%;" data-title="Фигурка 92"><img data-src="./pieces/92.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_93" style="left: 40.5%; top: 62.6%;" data-title="Фигурка 93"><img data-src="./pieces/93.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_94" style="left: 42.5%; top: 64.6%;" data-title="Фигурка 94"><img data-src="./pieces/94.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_95" style="left: 73.7%; top: 65.0%;" data-title="Фигурка 95"><img data-src="./pieces/95.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_96" style="left: 74.4%; top: 59.3%;" data-title="Фигурка 96"><img data-src="./pieces/96.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_97" style="left: 75.1%; top: 49.6%;" data-title="Фигурка 97"><img data-src="./pieces/97.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_98" style="left: 43.2%; top: 27.1%;" data-title="Фигурка 98"><img data-src="./pieces/98.jpg" loading="lazy" alt="в работе"></div>
+
+</div>
+
+<script>
+    const mapContainer = document.querySelector('.map-container');
+
+    // Настройки для ПК-зума за курсором
+    let scale = 1;
+    let posX = 0;
+    let posY = 0;
+
+    // 1. УМНЫЙ ЗУМ ЗА МЫШКОЙ (ПК)
+    mapContainer.addEventListener('wheel', (e) => {
+        e.preventDefault();
+
+        const rect = mapContainer.getBoundingClientRect();
+        // Находим координаты мышки относительно самой карты
+        const mouseX = (e.clientX - rect.left) / scale;
+        const mouseY = (e.clientY - rect.top) / scale;
+
+        // Рассчитываем новый масштаб
+        const zoomFactor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+        const nextScale = Math.max(1, Math.min(scale * zoomFactor, 25)); // Макс зум 25х
+
+        // Корректируем сдвиг X и Y, чтобы точка под курсором осталась на месте
+        posX = e.clientX - rect.left - mouseX * nextScale + posX;
+        posY = e.clientY - rect.top - mouseY * nextScale + posY;
+        scale = nextScale;
+
+        // Если вернулись к исходному размеру — сбрасываем сдвиги центра
+        if (scale === 1) { posX = 0; posY = 0; }
+
+        // Передаем координаты и масштаб в CSS
+        mapContainer.style.setProperty('--map-scale', scale);
+        mapContainer.style.setProperty('--zoom-x', `${posX}px`);
+        mapContainer.style.setProperty('--zoom-y', `${posY}px`);
+    }, { passive: false });
+
+
+    // 2. СЛУШАТЕЛЬ УМЕНЬШЕНИЯ ДЛЯ СМАРТФОНОВ (Родной мобильный зум)
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', () => {
+            mapContainer.style.setProperty('--mobile-zoom', window.visualViewport.scale);
+        });
+    }
+
+
+    // 3. БАЗОВАЯ ЛОГИКА (Авто-ID, Сбор Карт, Показ JPG скринов)
+    document.querySelectorAll('.marker.piece').forEach((marker, index) => {
+        if (!marker.id) marker.id = 'p' + (index + 1);
+        if (localStorage.getItem(marker.id) === 'collected') {
+            marker.classList.add('collected');
+        }
+    });
+
+    mapContainer.addEventListener('click', (event) => {
+        const clickedMarker = event.target.closest('.marker.piece');
+
+        if (clickedMarker) {
+            event.stopPropagation(); 
+            if (event.target.tagName === 'IMG') return;
+
+            // Клик по карте (собрано / не собрано)
+            if (clickedMarker.classList.contains('collected')) {
+                clickedMarker.classList.remove('collected');
+                localStorage.removeItem(clickedMarker.id); 
+            } else {
+                clickedMarker.classList.add('collected');
+                localStorage.setItem(clickedMarker.id, 'collected'); 
+            }
+
+            // Открытие скриншота весом 40 КБ
+            if (clickedMarker.classList.contains('show-screenshot')) {
+                clickedMarker.classList.remove('show-screenshot');
+            } else {
+                document.querySelectorAll('.marker.piece').forEach(m => m.classList.remove('show-screenshot'));
+                
+                const img = clickedMarker.querySelector('img');
+                if (img && img.getAttribute('data-src')) {
+                    img.src = img.getAttribute('data-src');
+                    img.removeAttribute('data-src');
+                }
+                clickedMarker.classList.add('show-screenshot');
+            }
+
+        } else {
+            // Клик мимо — закрыть окна
+            document.querySelectorAll('.marker.piece').forEach(marker => {
+                marker.classList.remove('show-screenshot');
+            });
+
+            // Код для разработчика (Генерация новых точек в F12)
+            const rect = mapContainer.getBoundingClientRect();
+            const left = (((event.clientX - rect.left) / scale) / 684 * 100).toFixed(1);
+            const top = (((event.clientY - rect.top) / scale) / 1017 * 100).toFixed(1);
+            const nextIndex = document.querySelectorAll('.marker.piece').length + 1;
+            
+            console.log(`<div class="marker piece" id="piece_1" style="left: ${left}%; top: ${top}%;" data-title="Фигурка ${nextIndex}"><img data-src="./pieces/${nextIndex}.jpg" loading="lazy" alt="в работе"></div>`);
+        }
+    });
+</script>
+
+
+</body>
+</html>
