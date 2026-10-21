@@ -133,16 +133,71 @@
         filter: none !important;
     }
 
+/* Панель управления счетчиком */
+.counter-box {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background: rgba(20, 20, 20, 0.85);
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    font-weight: bold;
+    border: 1px solid #ff8c00;
+    z-index: 99999;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.counter-box span:first-child {
+    pointer-events: none; /* Текст не мешает кликам */
+}
+
+#counter-value {
+    color: #ff8c00;
+}
+
+/* Кнопка сброса */
+#reset-btn {
+    background: rgba(255, 68, 68, 0.2);
+    border: 1px solid #ff4444;
+    color: #ff8888;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: none; /* Скрыта по умолчанию */
+}
+
+#reset-btn:hover {
+    background: #ff4444;
+    color: #fff;
+    box-shadow: 0 0 8px rgba(255, 68, 68, 0.5);
+}
+
+
 </style>
 
 
 </head>
 <body>
+    
+<!-- Минималистичная панель счетчика и сброса -->
+<div class="counter-box">
+    <span>Тыквы: <span id="counter-value">0/0</span></span>
+    <button id="reset-btn" title="Сбросить весь прогресс">✕</button>
+</div>
+
     <!-- Контейнер с картой -->
     <div class="map-container"> 
         <!-- Картинка фона -->
         <img src="./map.jpg" alt="Карта" class="map-image">  
-        <!-- ТОЧНЫЕ ТЫКВЫ В ПАЛЕТО-БЭЙ (ПО ОРАНЖЕВЫМ МЕТКАМ НА skrine) -->
+        <!-- ТОЧНЫЕ ТЫКВЫ (ПО ОРАНЖЕВЫМ МЕТКАМ НА skrine) -->
 <div class="marker pumpkin" id="pumpkin_1" style="left: 42.3%; top: 16.6%;" data-title="Тыква 1"><img data-src="./pumpkins/1.jpg" loading="lazy" alt="в работе"></div>
 <div class="marker pumpkin" id="pumpkin_2" style="left: 41.4%; top: 15.5%;" data-title="Тыква 2"><img data-src="./pumpkins/2.jpg" loading="lazy" alt="в работе"></div>
 <div class="marker pumpkin" id="pumpkin_3" style="left: 42.5%; top: 15.3%;" data-title="Тыква 3"><img data-src="./pumpkins/3.jpg" loading="lazy" alt="в работе"></div>
@@ -347,12 +402,46 @@
 </div>
 
 <script>
+    // Получаем необходимые элементы интерфейса
     const mapContainer = document.querySelector('.map-container');
+    const counterValue = document.getElementById('counter-value');
+    const resetBtn = document.getElementById('reset-btn');
 
     // Настройки для ПК-зума за курсором
     let scale = 1;
     let posX = 0;
     let posY = 0;
+
+    // Функция обновления счетчика и видимости кнопки сброса
+    function updateCounter() {
+        const total = document.querySelectorAll('.marker.pumpkin').length;
+        const collected = document.querySelectorAll('.marker.pumpkin.collected').length;
+        counterValue.textContent = `${collected}/${total}`;
+
+        // Показываем кнопку "Сброс" только если собрана хотя бы одна тыква
+        if (collected > 0) {
+            resetBtn.style.display = 'inline-block';
+        } else {
+            resetBtn.style.display = 'none';
+        }
+    }
+
+    // Обработчик клика по кнопке сброса прогресса
+    resetBtn.addEventListener('click', () => {
+        if (confirm('Вы уверены, что хотите сбросить весь прогресс сбора тыкв?')) {
+            // Удаляем статус "собрано" у всех тыкв на карте и из localStorage
+            document.querySelectorAll('.marker.pumpkin').forEach(marker => {
+                marker.classList.remove('collected');
+                localStorage.removeItem(marker.id);
+            });
+            
+            // Закрываем открытые скриншоты при сбросе
+            document.querySelectorAll('.marker.pumpkin').forEach(m => m.classList.remove('show-screenshot'));
+            
+            // Обновляем панель счетчика
+            updateCounter();
+        }
+    });
 
     // 1. УМНЫЙ ЗУМ ЗА МЫШКОЙ (ПК)
     mapContainer.addEventListener('wheel', (e) => {
@@ -375,7 +464,7 @@
         // Если вернулись к исходному размеру — сбрасываем сдвиги центра
         if (scale === 1) { posX = 0; posY = 0; }
 
-        // Передаем координаты и масштаб в CSS
+        // Передаем координаты и масштаб в CSS переменные
         mapContainer.style.setProperty('--map-scale', scale);
         mapContainer.style.setProperty('--zoom-x', `${posX}px`);
         mapContainer.style.setProperty('--zoom-y', `${posY}px`);
@@ -392,12 +481,19 @@
 
     // 3. БАЗОВАЯ ЛОГИКА (Авто-ID, Сбор тыкв, Показ JPG скринов)
     document.querySelectorAll('.marker.pumpkin').forEach((marker, index) => {
+        // Автоматически даем ID, если его нет в HTML
         if (!marker.id) marker.id = 'p' + (index + 1);
+        
+        // Восстанавливаем сохраненный прогресс из памяти браузера
         if (localStorage.getItem(marker.id) === 'collected') {
             marker.classList.add('collected');
         }
     });
 
+    // Первичный расчет счетчика сразу при загрузке страницы
+    updateCounter();
+
+    // Слушатель кликов по карте и меткам
     mapContainer.addEventListener('click', (event) => {
         const clickedMarker = event.target.closest('.marker.pumpkin');
 
@@ -405,7 +501,7 @@
             event.stopPropagation(); 
             if (event.target.tagName === 'IMG') return;
 
-            // Клик по тыкве (собрано / не собрано)
+            // Переключение статуса: Клик по тыкве (собрано / не собрано)
             if (clickedMarker.classList.contains('collected')) {
                 clickedMarker.classList.remove('collected');
                 localStorage.removeItem(clickedMarker.id); 
@@ -414,33 +510,41 @@
                 localStorage.setItem(clickedMarker.id, 'collected'); 
             }
 
-            // Открытие скриншота весом 40 КБ
+            // Сразу обновляем цифры в счетчике после переключения класса
+            updateCounter();
+
+            // Открытие скриншота весом 40 КБ и подмена data-src на src (Lazy Loading)
             if (clickedMarker.classList.contains('show-screenshot')) {
                 clickedMarker.classList.remove('show-screenshot');
             } else {
+                // Сначала закрываем скриншоты у всех остальных тыкв
                 document.querySelectorAll('.marker.pumpkin').forEach(m => m.classList.remove('show-screenshot'));
                 
+                // Загружаем картинку только в момент открытия
                 const img = clickedMarker.querySelector('img');
                 if (img && img.getAttribute('data-src')) {
                     img.src = img.getAttribute('data-src');
-                    img.removeAttribute('data-src');
+                    img.removeAttribute('data-src'); // Убираем атрибут, чтобы не перезагружать повторно
                 }
                 clickedMarker.classList.add('show-screenshot');
             }
 
         } else {
-            // Клик мимо — закрыть окна
+            // Клик мимо тыквы — закрыть все открытые скриншоты
             document.querySelectorAll('.marker.pumpkin').forEach(marker => {
                 marker.classList.remove('show-screenshot');
             });
 
-            // Код для разработчика (Генерация новых точек в F12)
+            // Код для разработчика (Генерация новых точек в F12 при клике на карту)
             const rect = mapContainer.getBoundingClientRect();
             const left = (((event.clientX - rect.left) / scale) / 684 * 100).toFixed(1);
             const top = (((event.clientY - rect.top) / scale) / 1017 * 100).toFixed(1);
             const nextIndex = document.querySelectorAll('.marker.pumpkin').length + 1;
             
             console.log(`<div class="marker pumpkin" style="left: ${left}%; top: ${top}%;" data-title="Тыква ${nextIndex}"><img data-src="./pumpkins/${nextIndex}.jpg" alt="в работе"></div>`);
+            
+            // Обновляем счетчик на случай, если вы скопируете новую точку прямо в DOM через инспектор
+            updateCounter();
         }
     });
 </script>
