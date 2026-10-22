@@ -209,11 +209,131 @@
 
 </div>
 
+<!-- ==========================================
+    HTML И CSS ДЛЯ ЭФФЕКТА RESPECT + В ТОЧНОМ СТИЛЕ GTA SA
+    ========================================== -->
+<style>
+    /* Подключаем ваш локальный шрифт Pricedown */
+    @font-face {
+        font-family: 'Pricedown';
+        src: url('./fonts/pricedown.otf') format('opentype'); 
+        font-weight: normal;
+        font-style: normal;
+    }
+
+    /* Полный экран для оверлея */
+    .respect-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0); 
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 999999; 
+        pointer-events: none; 
+        transition: background 0.8s ease;
+    }
+
+    /* Контейнер надписей */
+    .gta-mission-box {
+        font-family: 'Pricedown', 'Arial Black', sans-serif;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0px; /* В игре строчки расположены очень близко друг к другу */
+        opacity: 0;
+        transform: scale(0.6);
+        transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1.15);
+    }
+
+    /* 1. ВЕРХНЯЯ СТРОКА: Золотой градиент */
+    .mission-title {
+        font-size: 7.5rem;
+        letter-spacing: -1px;
+        background: linear-gradient(to bottom, #f3be27 0%, #cc7f00 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        line-height: 1.05;
+        /* Четкий черный контур для прозрачного градиентного текста */
+        filter: drop-shadow(-2.5px -2.5px 0 #000) 
+                drop-shadow(2.5px -2.5px 0 #000) 
+                drop-shadow(-2.5px 2.5px 0 #000) 
+                drop-shadow(2.5px 2.5px 0 #000);
+    }
+
+    /* 2. НИЖНЯЯ СТРОКА: Полностью белая с черной обводкой */
+    .respect-row {
+        font-size: 5rem;
+        color: #ffffff;
+        letter-spacing: -0.5px;
+        line-height: 1.1;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        /* Классическая обводка text-shadow для сплошного белого цвета */
+        text-shadow: 
+            -2.5px -2.5px 0 #000,  2.5px -2.5px 0 #000, 
+            -2.5px  2.5px 0 #000,  2.5px  2.5px 0 #000,
+            -2.5px  0px   0 #000,  2.5px  0px   0 #000,  
+                0px  -2.5px 0 #000,  0px   2.5px 0 #000;
+    }
+
+    /* Активация эффекта при вызове скрипта */
+    .respect-overlay.active {
+        background: rgba(0, 0, 0, 0.35); /* Легкое внутриигровое затемнение */
+    }
+    
+    .respect-overlay.active .gta-mission-box {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    /* Корректное отображение на мобильных устройствах */
+    @media (max-width: 768px) {
+        .mission-title {
+            font-size: 4rem;
+        }
+        .respect-row {
+            font-size: 2.6rem;
+            gap: 8px;
+        }
+        .mission-title {
+            filter: drop-shadow(-1.5px -1.5px 0 #000) drop-shadow(1.5px -1.5px 0 #000) drop-shadow(-1.5px 1.5px 0 #000) drop-shadow(1.5px 1.5px 0 #000);
+        }
+        .respect-row {
+            text-shadow: -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000;
+        }
+    }
+</style>
+
+<!-- Двухстрочный оверлей в точном соответствии с игрой -->
+<div id="respect-screen" class="respect-overlay">
+    <div class="gta-mission-box">
+        <!-- Для шрифта Pricedown пишем именно строчными (маленькими) буквами -->
+        <div class="mission-title">миссия выполнена!</div>
+        <div class="respect-row">
+            <span>УВАЖЕНИЕ</span>
+            <span>+</span>
+        </div>
+    </div>
+</div>
+<!-- ========================================== -->
+
 <script>
     // Получаем необходимые элементы интерфейса
     const mapContainer = document.querySelector('.map-container');
     const counterValue = document.getElementById('counter-value');
     const resetBtn = document.getElementById('reset-btn');
+
+    // Настройки для эффекта RESPECT
+    const respectScreen = document.getElementById('respect-screen');
+    const respectAudio = new Audio("./audio/respect2.m4a");
+    let isRespectTriggered = false; // Защита от повторного спама эффекта
 
     // Настройки для ПК-зума за курсором
     let scale = 1;
@@ -226,18 +346,37 @@
         const collected = document.querySelectorAll('.marker.ghost.collected').length;
         counterValue.textContent = `${collected}/${total}`;
 
-        // Показываем кнопку "Сброс" только если собрана хотя бы одна точка
+        // Показываем кнопку "Сброс" только если собрана хотя бы одна тыква
         if (collected > 0) {
             resetBtn.style.display = 'inline-block';
         } else {
             resetBtn.style.display = 'none';
         }
+
+        // Если при загрузке или обновлении не все собрано, сбрасываем флаг триггера респекта
+        if (collected < total) {
+            isRespectTriggered = false;
+        }
+    }
+
+    // Функция активации эффекта RESPECT +
+    function triggerRespectEffect() {
+        if (isRespectTriggered) return; // Если уже горит на экране, игнорируем
+        isRespectTriggered = true;
+
+        respectScreen.classList.add('active');
+        respectAudio.play().catch(e => console.log("Кликните по карте, чтобы браузер разрешил воспроизведение звука"));
+
+        // Через 4 секунды плавно убираем надпись с экрана
+        setTimeout(() => {
+            respectScreen.classList.remove('active');
+        }, 13000);
     }
 
     // Обработчик клика по кнопке сброса прогресса
     resetBtn.addEventListener('click', () => {
         if (confirm('Вы уверены, что хотите сбросить весь прогресс фото призраков?')) {
-            // Удаляем статус "собрано" у всех точек на карте и из localStorage
+            // Удаляем статус "собрано" у всех тыкв на карте и из localStorage
             document.querySelectorAll('.marker.ghost').forEach(marker => {
                 marker.classList.remove('collected');
                 localStorage.removeItem(marker.id);
@@ -287,7 +426,7 @@
     }
 
 
-    // 3. БАЗОВАЯ ЛОГИКА (Авто-ID, Сбор, Показ JPG скринов)
+    // 3. БАЗОВАЯ ЛОГИКА (Авто-ID, Сбор тыкв, Показ JPG скринов)
     document.querySelectorAll('.marker.ghost').forEach((marker, index) => {
         // Автоматически даем ID, если его нет в HTML
         if (!marker.id) marker.id = 'p' + (index + 1);
@@ -309,7 +448,7 @@
             event.stopPropagation(); 
             if (event.target.tagName === 'IMG') return;
 
-            // Переключение статуса: Клик по точке (собрано / не собрано)
+            // Переключение статуса: Клик по тыкве (собрано / не собрано)
             if (clickedMarker.classList.contains('collected')) {
                 clickedMarker.classList.remove('collected');
                 localStorage.removeItem(clickedMarker.id); 
@@ -321,11 +460,18 @@
             // Сразу обновляем цифры в счетчике после переключения класса
             updateCounter();
 
+            // ПРОВЕРКА НА RESPECT: Если после клика собраны абсолютно все тыквы
+            const totalItems = document.querySelectorAll('.marker.ghost').length;
+            const collectedItems = document.querySelectorAll('.marker.ghost.collected').length;
+            if (collectedItems === totalItems && totalItems > 0) {
+                triggerRespectEffect();
+            }
+
             // Открытие скриншота весом 40 КБ и подмена data-src на src (Lazy Loading)
             if (clickedMarker.classList.contains('show-screenshot')) {
                 clickedMarker.classList.remove('show-screenshot');
             } else {
-                // Сначала закрываем скриншоты у всех остальных точек
+                // Сначала закрываем скриншоты у всех остальных тыкв
                 document.querySelectorAll('.marker.ghost').forEach(m => m.classList.remove('show-screenshot'));
                 
                 // Загружаем картинку только в момент открытия
@@ -338,7 +484,7 @@
             }
 
         } else {
-            // Клик мимо точки — закрыть все открытые скриншоты
+            // Клик мимо тыквы — закрыть все открытые скриншоты
             document.querySelectorAll('.marker.ghost').forEach(marker => {
                 marker.classList.remove('show-screenshot');
             });
@@ -349,7 +495,7 @@
             const top = (((event.clientY - rect.top) / scale) / 1017 * 100).toFixed(1);
             const nextIndex = document.querySelectorAll('.marker.ghost').length + 1;
             
-            console.log(`<div class="marker ghost" style="left: ${left}%; top: ${top}%;" data-title="Призрак ${nextIndex}"><img data-src="./ghosts/${nextIndex}.jpg" alt="в работе"></div>`);
+            console.log(`<div class="marker ghost" style="left: ${left}%; top: ${top}%;" data-title="Тыква ${nextIndex}"><img data-src="./ghosts/${nextIndex}.jpg" alt="в работе"></div>`);
             
             // Обновляем счетчик на случай, если вы скопируете новую точку прямо в DOM через инспектор
             updateCounter();

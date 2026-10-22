@@ -525,7 +525,7 @@
 
     // Настройки для эффекта RESPECT
     const respectScreen = document.getElementById('respect-screen');
-    const respectAudio = new Audio("./audio/respect.mp3");
+    const respectAudio = new Audio("./audio/respect2.m4a");
     let isRespectTriggered = false; // Защита от повторного спама эффекта
 
     // Настройки для ПК-зума за курсором
@@ -563,7 +563,7 @@
         // Через 4 секунды плавно убираем надпись с экрана
         setTimeout(() => {
             respectScreen.classList.remove('active');
-        }, 4000);
+        }, 13000);
     }
 
     // Обработчик клика по кнопке сброса прогресса
@@ -696,7 +696,6 @@
     });
 </script>
 
-
-
 </body>
+
 </html>
