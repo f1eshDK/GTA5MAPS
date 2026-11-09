@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GTA V Закладки</title>
+    <link rel="icon" type="image/x-icon" href="favicon.png">
+    <style>
+    body {
+        margin: 0;
+        padding: 20px;
+        background-color: rgb(58, 75, 82); /* Цвет океана */
+        display: flex;
+        justify-content: center;
+        /* ИСПРАВЛЕНИЕ ДЛЯ МОБИЛЬНЫХ: не дает контенту ломать границы экрана */
+        overflow-x: hidden; 
+    }
+
+    /* Контейнер карты */
+    .map-container {
+        position: relative;
+        width: 684px;  
+        height: 1017px; 
+        
+        /* ИСПРАВЛЕНИЕ ДЛЯ МОБИЛЬНЫХ: предотвращает жесткое растягивание и искажение пропорций */
+        max-width: 100%;
+        height: auto;
+        aspect-ratio: 684 / 1017;
+
+        transform-origin: 0 0;
+        transform: translate(var(--zoom-x, 0px), var(--zoom-y, 0px)) scale(var(--map-scale, 1));
+        transition: transform 0.1s ease-out;
+    }
+
+    /* Картинка подложки карты */
+    .map-image {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+
+    /* Общий стиль для всех меток */
+    .marker {
+        position: absolute;
+        width: calc(12px / (var(--map-scale, 1) * var(--mobile-zoom, 1)));
+        aspect-ratio: 1 / 1; 
+        border: calc(2px / (var(--map-scale, 1) * var(--mobile-zoom, 1))) solid #00ff15;
+        background-color: red;
+        border-radius: 50%;
+        transform: translate(-50%, -50%); 
+        cursor: pointer;
+        z-index: 10;
+        box-sizing: border-box; 
+    }
+
+    /* Стиль для карт */
+    .marker.LD {
+        background-color: #00ff15;
+    }
+
+    /* Стиль всплывающего окна с текстом */
+    .marker::after {
+        content: attr(data-title);
+        position: absolute;
+        bottom: 25px; 
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(20, 20, 20, 0.95); 
+        color: white;
+        padding: 8px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: Arial, sans-serif;
+        white-space: pre-line; 
+        display: none; 
+        z-index: 20;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        border: 1px solid #00ff15; 
+        text-align: center;
+    }
+
+    .marker:hover::after { display: block; }
+    .marker.show-screenshot:hover::after { display: none; }
+
+    /* БАЗОВЫЙ СТИЛЬ СКРИНШОТА (Здесь основные исправления) */
+    .marker img {
+        display: none;
+        position: absolute;
+        bottom: 25px; 
+        left: 50%;
+        transform: translateX(-50%);
+        
+        /* Вычисляемая ширина скриншота */
+        width: calc(320px / (var(--map-scale, 1) * var(--mobile-zoom, 1)));
+        
+        /* ИСПРАВЛЕНИЕ ДЛЯ ПК: Картинка сжимается вслед за зумом, но НЕ МЕНЬШЕ 220px. 
+           Это создаст красивый предел при отдалении карты */
+        min-width: 130px; 
+        /* Ограничитель сверху, чтобы при огромном приближении картинка не перекрывала всё */
+        max-width: 450px; 
+
+        aspect-ratio: 16 / 9; 
+        height: auto; 
+        
+        border: calc(2px / (var(--map-scale, 1) * var(--mobile-zoom, 1))) solid #00ff15;
+        border-radius: 6px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.7);
+        z-index: 100;
+        pointer-events: none; 
+        object-fit: cover;
+    }
+
+    /* Класс показа скрина */
+    .marker.show-screenshot img {
+        display: block;
+        animation: fadeIn 0.2s ease-in-out;
+    }
+
+    .marker.show-screenshot { z-index: 9999; }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateX(-50%) translateY(5px); }
+        to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+
+    .marker.LD.collected {
+        background-color: rgba(102, 102, 102, 0.5); 
+        border: 1px solid rgba(153, 153, 153, 0.5); 
+        box-shadow: none;                            
+    }
+
+    .marker.LD.collected img {
+        opacity: 1 !important;
+        filter: none !important;
+    }
+
+    /* Панель управления счетчиком */
+.counter-box {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background: rgba(20, 20, 20, 0.85);
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    font-weight: bold;
+    border: 1px solid #00ff15;
+    z-index: 99999;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.counter-box span:first-child {
+    pointer-events: none; /* Текст не мешает кликам */
+}
+
+#counter-value {
+    color: #00ff15;
+}
+
+/* Кнопка сброса */
+#reset-btn {
+    background: rgba(255, 68, 68, 0.2);
+    border: 1px solid #ff4444;
+    color: #ff8888;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: none; /* Скрыта по умолчанию */
+}
+
+#reset-btn:hover {
+    background: #ff4444;
+    color: #fff;
+    box-shadow: 0 0 8px rgba(255, 68, 68, 0.5);
+}
+
+</style>
+
+
+</head>
+<body>
+    <!-- Минималистичная панель счетчика и сброса -->
+<div class="counter-box">
+    <span>Закладки: <span id="counter-value">0/0</span></span>
+    <button id="reset-btn" title="Сбросить весь прогресс">✕</button>
+</div>
+
+    <!-- Контейнер с картой -->
+    <div class="map-container"> 
+        <!-- Картинка фона -->
+        <img src="./map.jpg" alt="Карта" class="map-image">  
+        <!-- ТОЧНЫЕ метки -->
+<div class="marker LD" id="LD_1" style="left: 84.2%; top: 21.4%;" data-title="Закладка 1"><img data-src="./LD/1.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_2" style="left: 79.2%; top: 15.0%;" data-title="Закладка 2"><img data-src="./LD/2.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_3" style="left: 70.3%; top: 20.7%;" data-title="Закладка 3"><img data-src="./LD/3.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_4" style="left: 62.0%; top: 15.3%;" data-title="Закладка 4"><img data-src="./LD/4.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_5" style="left: 51.0%; top: 14.4%;" data-title="Закладка 5"><img data-src="./LD/5.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_6" style="left: 45.8%; top: 14.1%;" data-title="Закладка 6"><img data-src="./LD/6.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_7" style="left: 42.2%; top: 15.6%;" data-title="Закладка 7"><img data-src="./LD/7.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_8" style="left: 51.4%; top: 20.8%;" data-title="Закладка 8"><img data-src="./LD/8.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_9" style="left: 39.4%; top: 22.4%;" data-title="Закладка 9"><img data-src="./LD/9.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_10" style="left: 33.2%; top: 25.5%;" data-title="Закладка 10"><img data-src="./LD/10.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_11" style="left: 28.1%; top: 23.2%;" data-title="Закладка 11"><img data-src="./LD/11.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_12" style="left: 21.5%; top: 30.8%;" data-title="Закладка 12"><img data-src="./LD/12.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_13" style="left: 17.9%; top: 35.5%;" data-title="Закладка 13"><img data-src="./LD/13.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_14" style="left: 23.9%; top: 37.3%;" data-title="Закладка 14"><img data-src="./LD/14.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_15" style="left: 28.0%; top: 39.6%;" data-title="Закладка 15"><img data-src="./LD/15.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_16" style="left: 25.0%; top: 47.2%;" data-title="Закладка 16"><img data-src="./LD/16.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_17" style="left: 15.6%; top: 51.0%;" data-title="Закладка 17"><img data-src="./LD/17.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_18" style="left: 9.9%; top: 54.0%;" data-title="Закладка  18"><img data-src="./LD/18.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_19" style="left: 11.7%; top: 57.4%;" data-title="Закладка 19"><img data-src="./LD/19.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_20" style="left: 13.1%; top: 62.1%;" data-title="Закладка  20"><img data-src="./LD/20.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_21" style="left: 49.8%; top: 29.4%;" data-title="Закладка 21"><img data-src="./LD/21.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_22" style="left: 53.9%; top: 31.7%;" data-title="Закладка 22"><img data-src="./LD/22.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_23" style="left: 61.4%; top: 30.4%;" data-title="Закладка 23"><img data-src="./LD/23.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_24" style="left: 69.7%; top: 26.7%;" data-title="Закладка 24"><img data-src="./LD/24.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_25" style="left: 88.4%; top: 28.9%;" data-title="Закладка 25"><img data-src="./LD/25.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_26" style="left: 86.1%; top: 35.4%;" data-title="Закладка 26"><img data-src="./LD/26.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_27" style="left: 75.9%; top: 36.1%;" data-title="Закладка 27"><img data-src="./LD/27.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_28" style="left: 65.5%; top: 33.2%;" data-title="Закладка 28"><img data-src="./LD/28.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_29" style="left: 65.3%; top: 37.5%;" data-title="Закладка 29"><img data-src="./LD/29.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_30" style="left: 60.6%; top: 39.9%;" data-title="Закладка 30"><img data-src="./LD/30.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_31" style="left: 63.4%; top: 42.6%;" data-title="Закладка 31"><img data-src="./LD/31.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_32" style="left: 74.9%; top: 41.6%;" data-title="Закладка 32"><img data-src="./LD/32.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_33" style="left: 74.0%; top: 42.8%;" data-title="Закладка 33"><img data-src="./LD/33.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_34" style="left: 57.2%; top: 43.9%;" data-title="Закладка 34"><img data-src="./LD/34.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_35" style="left: 59.5%; top: 48.0%;" data-title="Закладка 35"><img data-src="./LD/35.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_36" style="left: 52.0%; top: 40.8%;" data-title="Закладка 36"><img data-src="./LD/36.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_37" style="left: 46.5%; top: 41.5%;" data-title="Закладка 37"><img data-src="./LD/37.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_38" style="left: 47.0%; top: 35.5%;" data-title="Закладка 38"><img data-src="./LD/38.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_39" style="left: 46.7%; top: 34.3%;" data-title="Закладка 39"><img data-src="./LD/39.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_40" style="left: 43.5%; top: 35.5%;" data-title="Закладка 40"><img data-src="./LD/40.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_41" style="left: 62.3%; top: 54.1%;" data-title="Закладка 41"><img data-src="./LD/41.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_42" style="left: 53.4%; top: 52.6%;" data-title="Закладка 42"><img data-src="./LD/42.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_43" style="left: 45.6%; top: 47.7%;" data-title="Закладка 43"><img data-src="./LD/43.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_44" style="left: 47.7%; top: 54.0%;" data-title="Закладка 44"><img data-src="./LD/44.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_45" style="left: 49.8%; top: 55.1%;" data-title="Закладка 45"><img data-src="./LD/45.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_46" style="left: 40.9%; top: 54.2%;" data-title="Закладка 46"><img data-src="./LD/46.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_47" style="left: 43.8%; top: 56.3%;" data-title="Закладка 47"><img data-src="./LD/47.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_48" style="left: 28.4%; top: 56.3%;" data-title="Закладка 48"><img data-src="./LD/48.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_49" style="left: 23.4%; top: 58.2%;" data-title="Закладка 49"><img data-src="./LD/49.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_50" style="left: 29.7%; top: 58.0%;" data-title="Закладка 50"><img data-src="./LD/50.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_51" style="left: 37.3%; top: 56.9%;" data-title="Закладка 51"><img data-src="./LD/51.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_52" style="left: 41.9%; top: 58.0%;" data-title="Закладка 52"><img data-src="./LD/52.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_53" style="left: 41.2%; top: 60.0%;" data-title="Закладка 53"><img data-src="./LD/53.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_54" style="left: 67.0%; top: 58.0%;" data-title="Закладка 54"><img data-src="./LD/54.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_55" style="left: 75.6%; top: 50.1%;" data-title="Закладка 55"><img data-src="./LD/55.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_56" style="left: 73.7%; top: 65.3%;" data-title="Закладка 56"><img data-src="./LD/56.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_57" style="left: 64.4%; top: 62.3%;" data-title="Закладка 57"><img data-src="./LD/57.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_58" style="left: 56.9%; top: 62.9%;" data-title="Закладка 58"><img data-src="./LD/58.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_59" style="left: 56.6%; top: 61.6%;" data-title="Закладка 59"><img data-src="./LD/59.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_60" style="left: 54.3%; top: 60.6%;" data-title="Закладка 60"><img data-src="./LD/60.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_61" style="left: 48.7%; top: 61.2%;" data-title="Закладка 61"><img data-src="./LD/61.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_62" style="left: 45.3%; top: 61.6%;" data-title="Закладка 62"><img data-src="./LD/62.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_63" style="left: 47.1%; top: 64.0%;" data-title="Закладка 63"><img data-src="./LD/63.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_64" style="left: 51.2%; top: 66.5%;" data-title="Закладка 64"><img data-src="./LD/64.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_65" style="left: 47.4%; top: 66.4%;" data-title="Закладка 65"><img data-src="./LD/65.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_66" style="left: 42.6%; top: 64.4%;" data-title="Закладка 66"><img data-src="./LD/66.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_67" style="left: 38.5%; top: 61.8%;" data-title="Закладка 67"><img data-src="./LD/67.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_68" style="left: 34.7%; top: 61.1%;" data-title="Закладка 68"><img data-src="./LD/68.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_69" style="left: 36.6%; top: 64.8%;" data-title="Закладка 69"><img data-src="./LD/69.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_70" style="left: 31.9%; top: 64.9%;" data-title="Закладка 70"><img data-src="./LD/70.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_71" style="left: 29.1%; top: 62.4%;" data-title="Закладка 71"><img data-src="./LD/71.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_72" style="left: 27.2%; top: 65.4%;" data-title="Закладка 72"><img data-src="./LD/72.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_73" style="left: 27.7%; top: 69.9%;" data-title="Закладка 73"><img data-src="./LD/73.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_74" style="left: 30.4%; top: 72.9%;" data-title="Закладка 74"><img data-src="./LD/74.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_75" style="left: 34.6%; top: 73.2%;" data-title="Закладка 75"><img data-src="./LD/75.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_76" style="left: 40.2%; top: 74.2%;" data-title="Закладка 76"><img data-src="./LD/76.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_77" style="left: 42.5%; top: 74.2%;" data-title="Закладка 77"><img data-src="./LD/77.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_78" style="left: 42.2%; top: 72.4%;" data-title="Закладка 78"><img data-src="./LD/78.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_79" style="left: 45.2%; top: 71.3%;" data-title="Закладка 79"><img data-src="./LD/79.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_80" style="left: 48.9%; top: 72.1%;" data-title="Закладка 80"><img data-src="./LD/80.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_81" style="left: 44.7%; top: 69.7%;" data-title="Закладка 81"><img data-src="./LD/81.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_82" style="left: 43.3%; top: 68.0%;" data-title="Закладка 82"><img data-src="./LD/82.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_83" style="left: 39.3%; top: 68.7%;" data-title="Закладка 83"><img data-src="./LD/83.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_84" style="left: 35.4%; top: 67.7%;" data-title="Закладка 84"><img data-src="./LD/84.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_85" style="left: 34.4%; top: 68.3%;" data-title="Закладка 85"><img data-src="./LD/85.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_86" style="left: 35.5%; top: 69.9%;" data-title="Закладка 86"><img data-src="./LD/86.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_87" style="left: 48.2%; top: 75.3%;" data-title="Закладка 87"><img data-src="./LD/87.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_88" style="left: 51.6%; top: 72.0%;" data-title="Закладка 88"><img data-src="./LD/88.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_89" style="left: 58.2%; top: 73.6%;" data-title="Закладка 89"><img data-src="./LD/89.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_90" style="left: 56.7%; top: 75.7%;" data-title="Закладка 90"><img data-src="./LD/90.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_91" style="left: 52.4%; top: 79.0%;" data-title="Закладка 91"><img data-src="./LD/91.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_92" style="left: 57.6%; top: 81.3%;" data-title="Закладка 92"><img data-src="./LD/92.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_93" style="left: 62.8%; top: 80.8%;" data-title="Закладка 93"><img data-src="./LD/93.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_94" style="left: 50.8%; top: 83.8%;" data-title="Закладка 94"><img data-src="./LD/94.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_95" style="left: 43.4%; top: 79.8%;" data-title="Закладка 95"><img data-src="./LD/95.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_96" style="left: 35.6%; top: 83.9%;" data-title="Закладка 96"><img data-src="./LD/96.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_97" style="left: 27.6%; top: 85.7%;" data-title="Закладка 97"><img data-src="./LD/97.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_98" style="left: 37.0%; top: 77.7%;" data-title="Закладка 98"><img data-src="./LD/98.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_99" style="left: 55.0%; top: 68.2%;" data-title="Закладка 99"><img data-src="./LD/99.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker LD" id="LD_100" style="left: 63.5%; top: 75.0%;" data-title="Закладка 100"><img data-src="./LD/100.jpg" loading="lazy" alt="в работе"></div>
+</div>
+
+<!-- ==========================================
+    HTML И CSS ДЛЯ ЭФФЕКТА RESPECT + В ТОЧНОМ СТИЛЕ GTA SA
+    ========================================== -->
+<style>
+    /* Подключаем ваш локальный шрифт Pricedown */
+    @font-face {
+        font-family: 'Pricedown';
+        src: url('./fonts/pricedown.otf') format('opentype'); 
+        font-weight: normal;
+        font-style: normal;
+    }
+
+    /* Полный экран для оверлея */
+    .respect-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0); 
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 999999; 
+        pointer-events: none; 
+        transition: background 0.8s ease;
+    }
+
+    /* Контейнер надписей */
+    .gta-mission-box {
+        font-family: 'Pricedown', 'Arial Black', sans-serif;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0px; /* В игре строчки расположены очень близко друг к другу */
+        opacity: 0;
+        transform: scale(0.6);
+        transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1.15);
+    }
+
+    /* 1. ВЕРХНЯЯ СТРОКА: Золотой градиент */
+    .mission-title {
+        font-size: 7.5rem;
+        letter-spacing: -1px;
+        background: linear-gradient(to bottom, #00ff15 0%, #00ff6a 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        line-height: 1.05;
+        /* Четкий черный контур для прозрачного градиентного текста */
+        filter: drop-shadow(-2.5px -2.5px 0 #000) 
+                drop-shadow(2.5px -2.5px 0 #000) 
+                drop-shadow(-2.5px 2.5px 0 #000) 
+                drop-shadow(2.5px 2.5px 0 #000);
+    }
+
+    /* 2. НИЖНЯЯ СТРОКА: Полностью белая с черной обводкой */
+    .respect-row {
+        font-size: 5rem;
+        color: #ffffff;
+        letter-spacing: -0.5px;
+        line-height: 1.1;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        /* Классическая обводка text-shadow для сплошного белого цвета */
+        text-shadow: 
+            -2.5px -2.5px 0 #000,  2.5px -2.5px 0 #000, 
+            -2.5px  2.5px 0 #000,  2.5px  2.5px 0 #000,
+            -2.5px  0px   0 #000,  2.5px  0px   0 #000,  
+                0px  -2.5px 0 #000,  0px   2.5px 0 #000;
+    }
+
+    /* Активация эффекта при вызове скрипта */
+    .respect-overlay.active {
+        background: rgba(0, 0, 0, 0.35); /* Легкое внутриигровое затемнение */
+    }
+    
+    .respect-overlay.active .gta-mission-box {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    /* Корректное отображение на мобильных устройствах */
+    @media (max-width: 768px) {
+        .mission-title {
+            font-size: 4rem;
+        }
+        .respect-row {
+            font-size: 2.6rem;
+            gap: 8px;
+        }
+        .mission-title {
+            filter: drop-shadow(-1.5px -1.5px 0 #000) drop-shadow(1.5px -1.5px 0 #000) drop-shadow(-1.5px 1.5px 0 #000) drop-shadow(1.5px 1.5px 0 #000);
+        }
+        .respect-row {
+            text-shadow: -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000;
+        }
+    }
+</style>
+
+<!-- Двухстрочный оверлей в точном соответствии с игрой -->
+<div id="respect-screen" class="respect-overlay">
+    <div class="gta-mission-box">
+        <!-- Для шрифта Pricedown пишем именно строчными (маленькими) буквами -->
+        <div class="mission-title">миссия выполнена!</div>
+        <div class="respect-row">
+            <span>УВАЖЕНИЕ</span>
+            <span>+</span>
+        </div>
+    </div>
+</div>
+<!-- ========================================== -->
+
+<script>
+    // Получаем необходимые элементы интерфейса
+    const mapContainer = document.querySelector('.map-container');
+    const counterValue = document.getElementById('counter-value');
+    const resetBtn = document.getElementById('reset-btn');
+
+    // Настройки для эффекта RESPECT
+    const respectScreen = document.getElementById('respect-screen');
+    const respectAudio = new Audio("./audio/respect2.m4a");
+    let isRespectTriggered = false; // Защита от повторного спама эффекта
+
+    // Настройки для ПК-зума за курсором
+    let scale = 1;
+    let posX = 0;
+    let posY = 0;
+
+    // Функция обновления счетчика и видимости кнопки сброса
+    function updateCounter() {
+        const total = document.querySelectorAll('.marker.LD').length;
+        const collected = document.querySelectorAll('.marker.LD.collected').length;
+        counterValue.textContent = `${collected}/${total}`;
+
+        // Показываем кнопку "Сброс" только если собрана хотя бы одна тыква
+        if (collected > 0) {
+            resetBtn.style.display = 'inline-block';
+        } else {
+            resetBtn.style.display = 'none';
+        }
+
+        // Если при загрузке или обновлении не все собрано, сбрасываем флаг триггера респекта
+        if (collected < total) {
+            isRespectTriggered = false;
+        }
+    }
+
+    // Функция активации эффекта RESPECT +
+    function triggerRespectEffect() {
+        if (isRespectTriggered) return; // Если уже горит на экране, игнорируем
+        isRespectTriggered = true;
+
+        respectScreen.classList.add('active');
+        respectAudio.play().catch(e => console.log("Кликните по карте, чтобы браузер разрешил воспроизведение звука"));
+
+        // Через 4 секунды плавно убираем надпись с экрана
+        setTimeout(() => {
+            respectScreen.classList.remove('active');
+        }, 13000);
+    }
+
+    // Обработчик клика по кнопке сброса прогресса
+    resetBtn.addEventListener('click', () => {
+        if (confirm('Вы уверены, что хотите сбросить весь прогресс фото призраков?')) {
+            // Удаляем статус "собрано" у всех тыкв на карте и из localStorage
+            document.querySelectorAll('.marker.LD').forEach(marker => {
+                marker.classList.remove('collected');
+                localStorage.removeItem(marker.id);
+            });
+            
+            // Закрываем открытые скриншоты при сбросе
+            document.querySelectorAll('.marker.LD').forEach(m => m.classList.remove('show-screenshot'));
+            
+            // Обновляем панель счетчика
+            updateCounter();
+        }
+    });
+
+    // 1. УМНЫЙ ЗУМ ЗА МЫШКОЙ (ПК)
+    mapContainer.addEventListener('wheel', (e) => {
+        e.preventDefault();
+
+        const rect = mapContainer.getBoundingClientRect();
+        // Находим координаты мышки относительно самой карты
+        const mouseX = (e.clientX - rect.left) / scale;
+        const mouseY = (e.clientY - rect.top) / scale;
+
+        // Рассчитываем новый масштаб
+        const zoomFactor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+        const nextScale = Math.max(1, Math.min(scale * zoomFactor, 25)); // Макс зум 25х
+
+        // Корректируем сдвиг X и Y, чтобы точка под курсором осталась на месте
+        posX = e.clientX - rect.left - mouseX * nextScale + posX;
+        posY = e.clientY - rect.top - mouseY * nextScale + posY;
+        scale = nextScale;
+
+        // Если вернулись к исходному размеру — сбрасываем сдвиги центра
+        if (scale === 1) { posX = 0; posY = 0; }
+
+        // Передаем координаты и масштаб в CSS переменные
+        mapContainer.style.setProperty('--map-scale', scale);
+        mapContainer.style.setProperty('--zoom-x', `${posX}px`);
+        mapContainer.style.setProperty('--zoom-y', `${posY}px`);
+    }, { passive: false });
+
+
+    // 2. СЛУШАТЕЛЬ УМЕНЬШЕНИЯ ДЛЯ СМАРТФОНОВ (Родной мобильный зум)
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', () => {
+            mapContainer.style.setProperty('--mobile-zoom', window.visualViewport.scale);
+        });
+    }
+
+
+    // 3. БАЗОВАЯ ЛОГИКА (Авто-ID, Сбор тыкв, Показ JPG скринов)
+    document.querySelectorAll('.marker.LD').forEach((marker, index) => {
+        // Автоматически даем ID, если его нет в HTML
+        if (!marker.id) marker.id = 'p' + (index + 1);
+        
+        // Восстанавливаем сохраненный прогресс из памяти браузера
+        if (localStorage.getItem(marker.id) === 'collected') {
+            marker.classList.add('collected');
+        }
+    });
+
+    // Первичный расчет счетчика сразу при загрузке страницы
+    updateCounter();
+
+    // Слушатель кликов по карте и меткам
+    mapContainer.addEventListener('click', (event) => {
+        const clickedMarker = event.target.closest('.marker.LD');
+
+        if (clickedMarker) {
+            event.stopPropagation(); 
+            if (event.target.tagName === 'IMG') return;
+
+            // Переключение статуса: Клик по тыкве (собрано / не собрано)
+            if (clickedMarker.classList.contains('collected')) {
+                clickedMarker.classList.remove('collected');
+                localStorage.removeItem(clickedMarker.id); 
+            } else {
+                clickedMarker.classList.add('collected');
+                localStorage.setItem(clickedMarker.id, 'collected'); 
+            }
+
+            // Сразу обновляем цифры в счетчике после переключения класса
+            updateCounter();
+
+            // ПРОВЕРКА НА RESPECT: Если после клика собраны абсолютно все тыквы
+            const totalItems = document.querySelectorAll('.marker.LD').length;
+            const collectedItems = document.querySelectorAll('.marker.LD.collected').length;
+            if (collectedItems === totalItems && totalItems > 0) {
+                triggerRespectEffect();
+            }
+
+            // Открытие скриншота весом 40 КБ и подмена data-src на src (Lazy Loading)
+            if (clickedMarker.classList.contains('show-screenshot')) {
+                clickedMarker.classList.remove('show-screenshot');
+            } else {
+                // Сначала закрываем скриншоты у всех остальных тыкв
+                document.querySelectorAll('.marker.LD').forEach(m => m.classList.remove('show-screenshot'));
+                
+                // Загружаем картинку только в момент открытия
+                const img = clickedMarker.querySelector('img');
+                if (img && img.getAttribute('data-src')) {
+                    img.src = img.getAttribute('data-src');
+                    img.removeAttribute('data-src'); // Убираем атрибут, чтобы не перезагружать повторно
+                }
+                clickedMarker.classList.add('show-screenshot');
+            }
+
+        } else {
+            // Клик мимо тыквы — закрыть все открытые скриншоты
+            document.querySelectorAll('.marker.LD').forEach(marker => {
+                marker.classList.remove('show-screenshot');
+            });
+
+            // Код для разработчика (Генерация новых точек в F12 при клике на карту)
+            const rect = mapContainer.getBoundingClientRect();
+            const left = (((event.clientX - rect.left) / scale) / 684 * 100).toFixed(1);
+            const top = (((event.clientY - rect.top) / scale) / 1017 * 100).toFixed(1);
+            const nextIndex = document.querySelectorAll('.marker.LD').length + 1;
+            
+            console.log(`<div class="marker LD" id="LD_${nextIndex}" style="left: ${left}%; top: ${top}%;" data-title="Закладка ${nextIndex}"><img data-src="./LD/${nextIndex}.jpg" loading="lazy" alt="в работе"></div>`);
+            
+            // Обновляем счетчик на случай, если вы скопируете новую точку прямо в DOM через инспектор
+            updateCounter();
+        }
+    });
+</script>
+
+
+</body>
+</html>
