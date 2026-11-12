@@ -6,23 +6,19 @@
     <title>GTA V Фигурки</title>
     <link rel="icon" type="image/png" href="./favicons/piece.png">
     <style>
-    body {
+        body {
         margin: 0;
         padding: 20px;
         background-color: rgb(58, 75, 82); /* Цвет океана */
         display: flex;
         justify-content: center;
-        /* ИСПРАВЛЕНИЕ ДЛЯ МОБИЛЬНЫХ: не дает контенту ломать границы экрана */
-        overflow-x: hidden; 
+        overflow: hidden; /* Запрещает дергание страницы при перетаскивании карты */
     }
 
     /* Контейнер карты */
     .map-container {
         position: relative;
         width: 684px;  
-        height: 1017px; 
-        
-        /* ИСПРАВЛЕНИЕ ДЛЯ МОБИЛЬНЫХ: предотвращает жесткое растягивание и искажение пропорций */
         max-width: 100%;
         height: auto;
         aspect-ratio: 684 / 1017;
@@ -30,6 +26,16 @@
         transform-origin: 0 0;
         transform: translate(var(--zoom-x, 0px), var(--zoom-y, 0px)) scale(var(--map-scale, 1));
         transition: transform 0.1s ease-out;
+
+        /* Настройки для плавного перетаскивания без выделения */
+        touch-action: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        cursor: grab;
+    }
+
+    .map-container:active {
+        cursor: grabbing;
     }
 
     /* Картинка подложки карты */
@@ -37,6 +43,7 @@
         width: 100%;
         height: 100%;
         display: block;
+        pointer-events: none; /* Чтобы браузер не перетаскивал саму картинку */
     }
 
     /* Общий стиль для всех меток */
@@ -426,31 +433,34 @@
     const respectAudio = new Audio("./audio/respect2.m4a");
     let isRespectTriggered = false;
 
-    // Настройки для ПК-зума за курсором
+    // Настройки зума и сдвига карты
     let scale = 1;
     let posX = 0;
     let posY = 0;
 
-    // Вспомогательная функция: считает фигурки с учетом двойных точек (data-weight="2")
-    function getPiecesCount(selector) {
-        let sum = 0;
-        document.querySelectorAll(selector).forEach(marker => {
-            sum += Number(marker.getAttribute('data-weight')) || 1;
-        });
-        return sum;
+    // Переменные для перетаскивания зажатой ЛКМ и пальцем
+    let isDragging = false;
+    let hasDragged = false;
+    let startX = 0;
+    let startY = 0;
+    let initialPinchDistance = null;
+    let initialScale = 1;
+
+    // Применение трансформаций (с плавностью для колеса и мгновенно при перетаскивании)
+    function applyTransform(smooth = false) {
+        mapContainer.style.transition = smooth ? 'transform 0.1s ease-out' : 'none';
+        mapContainer.style.setProperty('--map-scale', scale);
+        mapContainer.style.setProperty('--zoom-x', `${posX}px`);
+        mapContainer.style.setProperty('--zoom-y', `${posY}px`);
     }
 
     // Функция обновления счетчика и видимости кнопки сброса
     function updateCounter() {
-        const total = getPiecesCount('.marker.piece');
-        const collected = getPiecesCount('.marker.piece.collected');
+        const total = document.querySelectorAll('.marker.piece').length;
+        const collected = document.querySelectorAll('.marker.piece.collected').length;
         counterValue.textContent = `${collected}/${total}`;
 
-        if (collected > 0) {
-            resetBtn.style.display = 'inline-block';
-        } else {
-            resetBtn.style.display = 'none';
-        }
+        resetBtn.style.display = collected > 0 ? 'inline-block' : 'none';
 
         if (collected < total) {
             isRespectTriggered = false;
@@ -463,7 +473,7 @@
         isRespectTriggered = true;
 
         respectScreen.classList.add('active');
-        respectAudio.play().catch(e => console.log("Кликните по карте, чтобы браузер разрешил воспроизведение звука"));
+        respectAudio.play().catch(() => console.log("Кликните по карте, чтобы браузер разрешил воспроизведение звука"));
 
         setTimeout(() => {
             respectScreen.classList.remove('active');
@@ -474,11 +484,9 @@
     resetBtn.addEventListener('click', () => {
         if (confirm('Вы уверены, что хотите сбросить весь прогресс сбора фигурок?')) {
             document.querySelectorAll('.marker.piece').forEach(marker => {
-                marker.classList.remove('collected');
+                marker.classList.remove('collected', 'show-screenshot');
                 localStorage.removeItem(marker.id);
             });
-            
-            document.querySelectorAll('.marker.piece').forEach(m => m.classList.remove('show-screenshot'));
             updateCounter();
         }
     });
@@ -488,44 +496,138 @@
         e.preventDefault();
 
         const rect = mapContainer.getBoundingClientRect();
-        const mouseX = (e.clientX - rect.left) / scale;
-        const mouseY = (e.clientY - rect.top) / scale;
+        const cursorX = e.clientX - rect.left;
+        const cursorY = e.clientY - rect.top;
+
+        const originX = cursorX / scale;
+        const originY = cursorY / scale;
 
         const zoomFactor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
         const nextScale = Math.max(1, Math.min(scale * zoomFactor, 25));
 
-        posX = e.clientX - rect.left - mouseX * nextScale + posX;
-        posY = e.clientY - rect.top - mouseY * nextScale + posY;
+        posX += cursorX - originX * nextScale;
+        posY += cursorY - originY * nextScale;
         scale = nextScale;
 
-        if (scale === 1) { posX = 0; posY = 0; }
+        if (scale === 1) { 
+            posX = 0; 
+            posY = 0; 
+        }
 
-        mapContainer.style.setProperty('--map-scale', scale);
-        mapContainer.style.setProperty('--zoom-x', `${posX}px`);
-        mapContainer.style.setProperty('--zoom-y', `${posY}px`);
+        applyTransform(true);
     }, { passive: false });
 
-    // 2. СЛУШАТЕЛЬ УМЕНЬШЕНИЯ ДЛЯ СМАРТФОНОВ
+    // 2. ПЕРЕТАСКИВАНИЕ КАРТЫ ЗАЖАТОЙ ЛКМ (ПК)
+    mapContainer.addEventListener('mousedown', (e) => {
+        if (e.button !== 0 || scale === 0) return; // Работает только с ЛКМ и при зуме
+        isDragging = true;
+        hasDragged = false;
+        startX = e.clientX - posX;
+        startY = e.clientY - posY;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        
+        const moveX = e.clientX - startX;
+        const moveY = e.clientY - startY;
+
+        // Защита от ложного клика при сдвиге мыши больше чем на 3px
+        if (Math.abs(moveX - posX) > 3 || Math.abs(moveY - posY) > 3) {
+            hasDragged = true;
+        }
+
+        posX = moveX;
+        posY = moveY;
+        applyTransform(false);
+    });
+
+    window.addEventListener('mouseup', () => {
+        isDragging = false;
+    });
+
+    // 3. ПЕРЕТАСКИВАНИЕ И ЗУМ ДВУМЯ ПАЛЬЦАМИ (СМАРТФОНЫ)
+    mapContainer.addEventListener('touchstart', (e) => {
+        hasDragged = false;
+        if (e.touches.length === 1 && scale > 1) {
+            isDragging = true;
+            startX = e.touches[0].clientX - posX;
+            startY = e.touches[0].clientY - posY;
+        } else if (e.touches.length === 2) {
+            isDragging = false;
+            initialPinchDistance = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            initialScale = scale;
+        }
+    }, { passive: false });
+
+    mapContainer.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1 && isDragging) {
+            e.preventDefault();
+            const moveX = e.touches[0].clientX - startX;
+            const moveY = e.touches[0].clientY - startY;
+            if (Math.abs(moveX - posX) > 4 || Math.abs(moveY - posY) > 4) {
+                hasDragged = true;
+            }
+            posX = moveX;
+            posY = moveY;
+            applyTransform(false);
+        } else if (e.touches.length === 2 && initialPinchDistance) {
+            e.preventDefault();
+            hasDragged = true;
+            const currentDistance = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            const rect = mapContainer.getBoundingClientRect();
+            const centerX = ((e.touches[0].clientX + e.touches[1].clientX) / 2) - rect.left;
+            const centerY = ((e.touches[0].clientY + e.touches[1].clientY) / 2) - rect.top;
+            
+            const originX = centerX / scale;
+            const originY = centerY / scale;
+            const nextScale = Math.max(1, Math.min(initialScale * (currentDistance / initialPinchDistance), 25));
+
+            posX += centerX - originX * nextScale;
+            posY += centerY - originY * nextScale;
+            scale = nextScale;
+
+            if (scale === 1) { posX = 0; posY = 0; }
+            applyTransform(false);
+        }
+    }, { passive: false });
+
+    mapContainer.addEventListener('touchend', () => {
+        isDragging = false;
+        initialPinchDistance = null;
+    });
+
+    // СЛУШАТЕЛЬ УМЕНЬШЕНИЯ ДЛЯ СМАРТФОНОВ (Родной мобильный зум)
     if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', () => {
             mapContainer.style.setProperty('--mobile-zoom', window.visualViewport.scale);
         });
     }
 
-    // 3. БАЗОВАЯ ЛОГИКА (Уникальные ID для фигурок, восстановление прогресса)
+    // 4. БАЗОВАЯ ЛОГИКА (Авто-ID, Сбор коллекционок, Показ JPG скринов)
     document.querySelectorAll('.marker.piece').forEach((marker, index) => {
-        if (!marker.id) marker.id = 'piece_' + (index + 1);
-        
+        if (!marker.id) marker.id = 'p' + (index + 1);
         if (localStorage.getItem(marker.id) === 'collected') {
             marker.classList.add('collected');
         }
     });
 
-    // Первичный расчет счетчика сразу при загрузке страницы
     updateCounter();
 
     // Слушатель кликов по карте и меткам
     mapContainer.addEventListener('click', (event) => {
+        // Если карту перетаскивали зажатой ЛКМ, игнорируем клик в момент отпускания кнопки
+        if (hasDragged) {
+            hasDragged = false;
+            return;
+        }
+
         const clickedMarker = event.target.closest('.marker.piece');
 
         if (clickedMarker) {
@@ -542,14 +644,12 @@
 
             updateCounter();
 
-            // ПРОВЕРКА НА RESPECT (считаем с учетом двойной метки!)
-            const totalItems = getPiecesCount('.marker.piece');
-            const collectedItems = getPiecesCount('.marker.piece.collected');
+            const totalItems = document.querySelectorAll('.marker.piece').length;
+            const collectedItems = document.querySelectorAll('.marker.piece.collected').length;
             if (collectedItems === totalItems && totalItems > 0) {
                 triggerRespectEffect();
             }
 
-            // Открытие скриншота и Lazy Loading
             if (clickedMarker.classList.contains('show-screenshot')) {
                 clickedMarker.classList.remove('show-screenshot');
             } else {
@@ -564,22 +664,23 @@
             }
 
         } else {
-            // Клик мимо метки — закрыть все скриншоты
+            // Клик мимо метки — закрыть все открытые скриншоты
             document.querySelectorAll('.marker.piece').forEach(marker => {
                 marker.classList.remove('show-screenshot');
             });
 
-            // Генератор новых точек в консоли (F12)
+            // Генерация новых точек в F12 при клике на карту
             const rect = mapContainer.getBoundingClientRect();
-            const left = (((event.clientX - rect.left) / scale) / 684 * 100).toFixed(1);
-            const top = (((event.clientY - rect.top) / scale) / 1017 * 100).toFixed(1);
+            const left = (((event.clientX - rect.left) / rect.width) * 100).toFixed(2);
+            const top = (((event.clientY - rect.top) / rect.height) * 100).toFixed(2);
             const nextIndex = document.querySelectorAll('.marker.piece').length + 1;
             
-            console.log(`<div class="marker piece" id="piece_${nextIndex}" style="left: ${left}%; top: ${top}%;" data-title="Фигурка ${nextIndex}"><img data-src="./pieces/${nextIndex}.jpg" alt="в работе"></div>`);
+            console.log(`<div class="marker piece" style="left: ${left}%; top: ${top}%;" data-title="Фигурка ${nextIndex}"><img data-src="./pieces/${nextIndex}.jpg" alt="в работе"></div>`);
             
             updateCounter();
         }
     });
 </script>
+
 </body>
 </html>

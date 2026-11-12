@@ -6,23 +6,19 @@
     <title>GTA V Карты</title>
     <link rel="icon" type="image/png" href="./favicons/cards.png">
     <style>
-    body {
+        body {
         margin: 0;
         padding: 20px;
         background-color: rgb(58, 75, 82); /* Цвет океана */
         display: flex;
         justify-content: center;
-        /* ИСПРАВЛЕНИЕ ДЛЯ МОБИЛЬНЫХ: не дает контенту ломать границы экрана */
-        overflow-x: hidden; 
+        overflow: hidden; /* Запрещает дергание страницы при перетаскивании карты */
     }
 
     /* Контейнер карты */
     .map-container {
         position: relative;
         width: 684px;  
-        height: 1017px; 
-        
-        /* ИСПРАВЛЕНИЕ ДЛЯ МОБИЛЬНЫХ: предотвращает жесткое растягивание и искажение пропорций */
         max-width: 100%;
         height: auto;
         aspect-ratio: 684 / 1017;
@@ -30,6 +26,16 @@
         transform-origin: 0 0;
         transform: translate(var(--zoom-x, 0px), var(--zoom-y, 0px)) scale(var(--map-scale, 1));
         transition: transform 0.1s ease-out;
+
+        /* Настройки для плавного перетаскивания без выделения */
+        touch-action: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        cursor: grab;
+    }
+
+    .map-container:active {
+        cursor: grabbing;
     }
 
     /* Картинка подложки карты */
@@ -37,7 +43,9 @@
         width: 100%;
         height: 100%;
         display: block;
+        pointer-events: none; /* Чтобы браузер не перетаскивал саму картинку-призрак */
     }
+
 
     /* Общий стиль для всех меток */
     .marker {
@@ -377,12 +385,28 @@
     // Настройки для эффекта RESPECT
     const respectScreen = document.getElementById('respect-screen');
     const respectAudio = new Audio("./audio/respect2.m4a");
-    let isRespectTriggered = false; // Защита от повторного спама эффекта
+    let isRespectTriggered = false;
 
-    // Настройки для ПК-зума за курсором
+    // Настройки зума и сдвига карты
     let scale = 1;
     let posX = 0;
     let posY = 0;
+
+    // Переменные для перетаскивания зажатой ЛКМ и пальцем
+    let isDragging = false;
+    let hasDragged = false;
+    let startX = 0;
+    let startY = 0;
+    let initialPinchDistance = null;
+    let initialScale = 1;
+
+    // Применение трансформаций (с плавностью для колеса и мгновенно при перетаскивании)
+    function applyTransform(smooth = false) {
+        mapContainer.style.transition = smooth ? 'transform 0.1s ease-out' : 'none';
+        mapContainer.style.setProperty('--map-scale', scale);
+        mapContainer.style.setProperty('--zoom-x', `${posX}px`);
+        mapContainer.style.setProperty('--zoom-y', `${posY}px`);
+    }
 
     // Функция обновления счетчика и видимости кнопки сброса
     function updateCounter() {
@@ -390,14 +414,8 @@
         const collected = document.querySelectorAll('.marker.cards.collected').length;
         counterValue.textContent = `${collected}/${total}`;
 
-        // Показываем кнопку "Сброс" только если собрана хотя бы одна тыква
-        if (collected > 0) {
-            resetBtn.style.display = 'inline-block';
-        } else {
-            resetBtn.style.display = 'none';
-        }
+        resetBtn.style.display = collected > 0 ? 'inline-block' : 'none';
 
-        // Если при загрузке или обновлении не все собрано, сбрасываем флаг триггера респекта
         if (collected < total) {
             isRespectTriggered = false;
         }
@@ -405,13 +423,12 @@
 
     // Функция активации эффекта RESPECT +
     function triggerRespectEffect() {
-        if (isRespectTriggered) return; // Если уже горит на экране, игнорируем
+        if (isRespectTriggered) return;
         isRespectTriggered = true;
 
         respectScreen.classList.add('active');
-        respectAudio.play().catch(e => console.log("Кликните по карте, чтобы браузер разрешил воспроизведение звука"));
+        respectAudio.play().catch(() => console.log("Кликните по карте, чтобы браузер разрешил воспроизведение звука"));
 
-        // Через 4 секунды плавно убираем надпись с экрана
         setTimeout(() => {
             respectScreen.classList.remove('active');
         }, 13000);
@@ -419,17 +436,11 @@
 
     // Обработчик клика по кнопке сброса прогресса
     resetBtn.addEventListener('click', () => {
-        if (confirm('Вы уверены, что хотите сбросить весь прогресс фото призраков?')) {
-            // Удаляем статус "собрано" у всех тыкв на карте и из localStorage
+        if (confirm('Вы уверены, что хотите сбросить весь прогресс сбора карт?')) {
             document.querySelectorAll('.marker.cards').forEach(marker => {
-                marker.classList.remove('collected');
+                marker.classList.remove('collected', 'show-screenshot');
                 localStorage.removeItem(marker.id);
             });
-            
-            // Закрываем открытые скриншоты при сбросе
-            document.querySelectorAll('.marker.cards').forEach(m => m.classList.remove('show-screenshot'));
-            
-            // Обновляем панель счетчика
             updateCounter();
         }
     });
@@ -439,60 +450,144 @@
         e.preventDefault();
 
         const rect = mapContainer.getBoundingClientRect();
-        // Находим координаты мышки относительно самой карты
-        const mouseX = (e.clientX - rect.left) / scale;
-        const mouseY = (e.clientY - rect.top) / scale;
+        const cursorX = e.clientX - rect.left;
+        const cursorY = e.clientY - rect.top;
 
-        // Рассчитываем новый масштаб
+        const originX = cursorX / scale;
+        const originY = cursorY / scale;
+
         const zoomFactor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
-        const nextScale = Math.max(1, Math.min(scale * zoomFactor, 25)); // Макс зум 25х
+        const nextScale = Math.max(1, Math.min(scale * zoomFactor, 25));
 
-        // Корректируем сдвиг X и Y, чтобы точка под курсором осталась на месте
-        posX = e.clientX - rect.left - mouseX * nextScale + posX;
-        posY = e.clientY - rect.top - mouseY * nextScale + posY;
+        posX += cursorX - originX * nextScale;
+        posY += cursorY - originY * nextScale;
         scale = nextScale;
 
-        // Если вернулись к исходному размеру — сбрасываем сдвиги центра
-        if (scale === 1) { posX = 0; posY = 0; }
+        if (scale === 1) { 
+            posX = 0; 
+            posY = 0; 
+        }
 
-        // Передаем координаты и масштаб в CSS переменные
-        mapContainer.style.setProperty('--map-scale', scale);
-        mapContainer.style.setProperty('--zoom-x', `${posX}px`);
-        mapContainer.style.setProperty('--zoom-y', `${posY}px`);
+        applyTransform(true);
     }, { passive: false });
 
+    // 2. ПЕРЕТАСКИВАНИЕ КАРТЫ ЗАЖАТОЙ ЛКМ (ПК)
+    mapContainer.addEventListener('mousedown', (e) => {
+        if (e.button !== 0 || scale === 0) return; // Работает только с ЛКМ и при зуме
+        isDragging = true;
+        hasDragged = false;
+        startX = e.clientX - posX;
+        startY = e.clientY - posY;
+    });
 
-    // 2. СЛУШАТЕЛЬ УМЕНЬШЕНИЯ ДЛЯ СМАРТФОНОВ (Родной мобильный зум)
+    window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        
+        const moveX = e.clientX - startX;
+        const moveY = e.clientY - startY;
+
+        // Защита от ложного клика при сдвиге мыши больше чем на 3px
+        if (Math.abs(moveX - posX) > 3 || Math.abs(moveY - posY) > 3) {
+            hasDragged = true;
+        }
+
+        posX = moveX;
+        posY = moveY;
+        applyTransform(false);
+    });
+
+    window.addEventListener('mouseup', () => {
+        isDragging = false;
+    });
+
+    // 3. ПЕРЕТАСКИВАНИЕ И ЗУМ ДВУМЯ ПАЛЬЦАМИ (СМАРТФОНЫ)
+    mapContainer.addEventListener('touchstart', (e) => {
+        hasDragged = false;
+        if (e.touches.length === 1 && scale > 1) {
+            isDragging = true;
+            startX = e.touches[0].clientX - posX;
+            startY = e.touches[0].clientY - posY;
+        } else if (e.touches.length === 2) {
+            isDragging = false;
+            initialPinchDistance = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            initialScale = scale;
+        }
+    }, { passive: false });
+
+    mapContainer.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1 && isDragging) {
+            e.preventDefault();
+            const moveX = e.touches[0].clientX - startX;
+            const moveY = e.touches[0].clientY - startY;
+            if (Math.abs(moveX - posX) > 4 || Math.abs(moveY - posY) > 4) {
+                hasDragged = true;
+            }
+            posX = moveX;
+            posY = moveY;
+            applyTransform(false);
+        } else if (e.touches.length === 2 && initialPinchDistance) {
+            e.preventDefault();
+            hasDragged = true;
+            const currentDistance = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            const rect = mapContainer.getBoundingClientRect();
+            const centerX = ((e.touches[0].clientX + e.touches[1].clientX) / 2) - rect.left;
+            const centerY = ((e.touches[0].clientY + e.touches[1].clientY) / 2) - rect.top;
+            
+            const originX = centerX / scale;
+            const originY = centerY / scale;
+            const nextScale = Math.max(1, Math.min(initialScale * (currentDistance / initialPinchDistance), 25));
+
+            posX += centerX - originX * nextScale;
+            posY += centerY - originY * nextScale;
+            scale = nextScale;
+
+            if (scale === 1) { posX = 0; posY = 0; }
+            applyTransform(false);
+        }
+    }, { passive: false });
+
+    mapContainer.addEventListener('touchend', () => {
+        isDragging = false;
+        initialPinchDistance = null;
+    });
+
+    // СЛУШАТЕЛЬ УМЕНЬШЕНИЯ ДЛЯ СМАРТФОНОВ (Родной мобильный зум)
     if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', () => {
             mapContainer.style.setProperty('--mobile-zoom', window.visualViewport.scale);
         });
     }
 
-
-    // 3. БАЗОВАЯ ЛОГИКА (Авто-ID, Сбор тыкв, Показ JPG скринов)
+    // 4. БАЗОВАЯ ЛОГИКА (Авто-ID, Сбор призраков, Показ JPG скринов)
     document.querySelectorAll('.marker.cards').forEach((marker, index) => {
-        // Автоматически даем ID, если его нет в HTML
         if (!marker.id) marker.id = 'p' + (index + 1);
-        
-        // Восстанавливаем сохраненный прогресс из памяти браузера
         if (localStorage.getItem(marker.id) === 'collected') {
             marker.classList.add('collected');
         }
     });
 
-    // Первичный расчет счетчика сразу при загрузке страницы
     updateCounter();
 
     // Слушатель кликов по карте и меткам
     mapContainer.addEventListener('click', (event) => {
+        // Если карту перетаскивали зажатой ЛКМ, игнорируем клик в момент отпускания кнопки
+        if (hasDragged) {
+            hasDragged = false;
+            return;
+        }
+
         const clickedMarker = event.target.closest('.marker.cards');
 
         if (clickedMarker) {
             event.stopPropagation(); 
             if (event.target.tagName === 'IMG') return;
 
-            // Переключение статуса: Клик по тыкве (собрано / не собрано)
             if (clickedMarker.classList.contains('collected')) {
                 clickedMarker.classList.remove('collected');
                 localStorage.removeItem(clickedMarker.id); 
@@ -501,47 +596,41 @@
                 localStorage.setItem(clickedMarker.id, 'collected'); 
             }
 
-            // Сразу обновляем цифры в счетчике после переключения класса
             updateCounter();
 
-            // ПРОВЕРКА НА RESPECT: Если после клика собраны абсолютно все тыквы
             const totalItems = document.querySelectorAll('.marker.cards').length;
             const collectedItems = document.querySelectorAll('.marker.cards.collected').length;
             if (collectedItems === totalItems && totalItems > 0) {
                 triggerRespectEffect();
             }
 
-            // Открытие скриншота весом 40 КБ и подмена data-src на src (Lazy Loading)
             if (clickedMarker.classList.contains('show-screenshot')) {
                 clickedMarker.classList.remove('show-screenshot');
             } else {
-                // Сначала закрываем скриншоты у всех остальных тыкв
                 document.querySelectorAll('.marker.cards').forEach(m => m.classList.remove('show-screenshot'));
                 
-                // Загружаем картинку только в момент открытия
                 const img = clickedMarker.querySelector('img');
                 if (img && img.getAttribute('data-src')) {
                     img.src = img.getAttribute('data-src');
-                    img.removeAttribute('data-src'); // Убираем атрибут, чтобы не перезагружать повторно
+                    img.removeAttribute('data-src');
                 }
                 clickedMarker.classList.add('show-screenshot');
             }
 
         } else {
-            // Клик мимо тыквы — закрыть все открытые скриншоты
+            // Клик мимо метки — закрыть все открытые скриншоты
             document.querySelectorAll('.marker.cards').forEach(marker => {
                 marker.classList.remove('show-screenshot');
             });
 
-            // Код для разработчика (Генерация новых точек в F12 при клике на карту)
+            // Генерация новых точек в F12 при клике на карту
             const rect = mapContainer.getBoundingClientRect();
-            const left = (((event.clientX - rect.left) / scale) / 684 * 100).toFixed(1);
-            const top = (((event.clientY - rect.top) / scale) / 1017 * 100).toFixed(1);
+            const left = (((event.clientX - rect.left) / rect.width) * 100).toFixed(2);
+            const top = (((event.clientY - rect.top) / rect.height) * 100).toFixed(2);
             const nextIndex = document.querySelectorAll('.marker.cards').length + 1;
             
-            console.log(`<div class="marker cards" style="left: ${left}%; top: ${top}%;" data-title="Тыква ${nextIndex}"><img data-src="./cardss/${nextIndex}.jpg" alt="в работе"></div>`);
+            console.log(`<div class="marker cards" style="left: ${left}%; top: ${top}%;" data-title="Карта ${nextIndex}"><img data-src="./cardss/${nextIndex}.jpg" alt="в работе"></div>`);
             
-            // Обновляем счетчик на случай, если вы скопируете новую точку прямо в DOM через инспектор
             updateCounter();
         }
     });
