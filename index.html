@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GTA5MAPS</title>
+    <link rel="icon" type="image/x-icon" href="favicon.png">
     <style>
         @font-face {
             font-family: 'Pricedown';
@@ -175,9 +176,9 @@
         </a>
 
         <!-- КАРТА с фигурками -->
-        <a href="./piece.html" class="map-card theme-piece" data-prefix="piece_" data-total="99">
+        <a href="./piece.html" class="map-card theme-piece" data-prefix="piece_" data-total="100">
             <h2>фигурки</h2>
-            <p class="progress-text">Собрано: 0 / 99</p>
+            <p class="progress-text">Собрано: 0 / 100</p>
         </a>
 
         <!-- КАРТА с закладками -->
@@ -203,7 +204,12 @@
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
                 if (key && key.startsWith(prefix) && localStorage.getItem(key) === 'collected') {
-                    count++;
+                    // Учитываем двойную точку (99-я и 100-я фигурки в одном месте)
+                    if (key === 'piece_99') {
+                        count += 2;
+                    } else {
+                        count++;
+                    }
                 }
             }
 
@@ -221,6 +227,5 @@
     updateMainPageProgress();
     window.addEventListener('pageshow', updateMainPageProgress);
 </script>
-
 
 </html>

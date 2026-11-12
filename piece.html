@@ -248,7 +248,7 @@
 <div class="marker piece" id="piece_48" style="left: 51.8%; top: 39.3%;" data-title="Фигурка 48"><img data-src="./pieces/48.jpg" loading="lazy" alt="в работе"></div>
 <div class="marker piece" id="piece_49" style="left: 64.9%; top: 37.7%;" data-title="Фигурка 49"><img data-src="./pieces/49.jpg" loading="lazy" alt="в работе"></div>
 <div class="marker piece" id="piece_50" style="left: 75.3%; top: 40.4%;" data-title="Фигурка 50"><img data-src="./pieces/50.jpg" loading="lazy" alt="в работе"></div>
-<div class="marker piece" id="piece_99" style="left: 72.5%; top: 39.5%;" data-title="Фигурка 99, 100"><img data-src="./pieces/99.jpg" loading="lazy" alt="в работе"></div>
+<div class="marker piece" id="piece_99" data-weight="2" style="left: 72.5%; top: 39.5%;" data-title="Фигурка 99, 100"><img data-src="./pieces/99.jpg" loading="lazy" alt="в работе"></div>
 <div class="marker piece" id="piece_52" style="left: 85.0%; top: 34.3%;" data-title="Фигурка 52"><img data-src="./pieces/52.jpg" loading="lazy" alt="в работе"></div>
 <div class="marker piece" id="piece_53" style="left: 76.2%; top: 31.4%;" data-title="Фигурка 53"><img data-src="./pieces/53.jpg" loading="lazy" alt="в работе"></div>
 <div class="marker piece" id="piece_54" style="left: 88.3%; top: 28.9%;" data-title="Фигурка 54"><img data-src="./pieces/54.jpg" loading="lazy" alt="в работе"></div>
@@ -424,27 +424,34 @@
     // Настройки для эффекта RESPECT
     const respectScreen = document.getElementById('respect-screen');
     const respectAudio = new Audio("./audio/respect2.m4a");
-    let isRespectTriggered = false; // Защита от повторного спама эффекта
+    let isRespectTriggered = false;
 
     // Настройки для ПК-зума за курсором
     let scale = 1;
     let posX = 0;
     let posY = 0;
 
+    // Вспомогательная функция: считает фигурки с учетом двойных точек (data-weight="2")
+    function getPiecesCount(selector) {
+        let sum = 0;
+        document.querySelectorAll(selector).forEach(marker => {
+            sum += Number(marker.getAttribute('data-weight')) || 1;
+        });
+        return sum;
+    }
+
     // Функция обновления счетчика и видимости кнопки сброса
     function updateCounter() {
-        const total = document.querySelectorAll('.marker.piece').length;
-        const collected = document.querySelectorAll('.marker.piece.collected').length;
+        const total = getPiecesCount('.marker.piece');
+        const collected = getPiecesCount('.marker.piece.collected');
         counterValue.textContent = `${collected}/${total}`;
 
-        // Показываем кнопку "Сброс" только если собрана хотя бы одна тыква
         if (collected > 0) {
             resetBtn.style.display = 'inline-block';
         } else {
             resetBtn.style.display = 'none';
         }
 
-        // Если при загрузке или обновлении не все собрано, сбрасываем флаг триггера респекта
         if (collected < total) {
             isRespectTriggered = false;
         }
@@ -452,13 +459,12 @@
 
     // Функция активации эффекта RESPECT +
     function triggerRespectEffect() {
-        if (isRespectTriggered) return; // Если уже горит на экране, игнорируем
+        if (isRespectTriggered) return;
         isRespectTriggered = true;
 
         respectScreen.classList.add('active');
         respectAudio.play().catch(e => console.log("Кликните по карте, чтобы браузер разрешил воспроизведение звука"));
 
-        // Через 4 секунды плавно убираем надпись с экрана
         setTimeout(() => {
             respectScreen.classList.remove('active');
         }, 13000);
@@ -466,17 +472,13 @@
 
     // Обработчик клика по кнопке сброса прогресса
     resetBtn.addEventListener('click', () => {
-        if (confirm('Вы уверены, что хотите сбросить весь прогресс фото призраков?')) {
-            // Удаляем статус "собрано" у всех тыкв на карте и из localStorage
+        if (confirm('Вы уверены, что хотите сбросить весь прогресс сбора фигурок?')) {
             document.querySelectorAll('.marker.piece').forEach(marker => {
                 marker.classList.remove('collected');
                 localStorage.removeItem(marker.id);
             });
             
-            // Закрываем открытые скриншоты при сбросе
             document.querySelectorAll('.marker.piece').forEach(m => m.classList.remove('show-screenshot'));
-            
-            // Обновляем панель счетчика
             updateCounter();
         }
     });
@@ -486,43 +488,34 @@
         e.preventDefault();
 
         const rect = mapContainer.getBoundingClientRect();
-        // Находим координаты мышки относительно самой карты
         const mouseX = (e.clientX - rect.left) / scale;
         const mouseY = (e.clientY - rect.top) / scale;
 
-        // Рассчитываем новый масштаб
         const zoomFactor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
-        const nextScale = Math.max(1, Math.min(scale * zoomFactor, 25)); // Макс зум 25х
+        const nextScale = Math.max(1, Math.min(scale * zoomFactor, 25));
 
-        // Корректируем сдвиг X и Y, чтобы точка под курсором осталась на месте
         posX = e.clientX - rect.left - mouseX * nextScale + posX;
         posY = e.clientY - rect.top - mouseY * nextScale + posY;
         scale = nextScale;
 
-        // Если вернулись к исходному размеру — сбрасываем сдвиги центра
         if (scale === 1) { posX = 0; posY = 0; }
 
-        // Передаем координаты и масштаб в CSS переменные
         mapContainer.style.setProperty('--map-scale', scale);
         mapContainer.style.setProperty('--zoom-x', `${posX}px`);
         mapContainer.style.setProperty('--zoom-y', `${posY}px`);
     }, { passive: false });
 
-
-    // 2. СЛУШАТЕЛЬ УМЕНЬШЕНИЯ ДЛЯ СМАРТФОНОВ (Родной мобильный зум)
+    // 2. СЛУШАТЕЛЬ УМЕНЬШЕНИЯ ДЛЯ СМАРТФОНОВ
     if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', () => {
             mapContainer.style.setProperty('--mobile-zoom', window.visualViewport.scale);
         });
     }
 
-
-    // 3. БАЗОВАЯ ЛОГИКА (Авто-ID, Сбор тыкв, Показ JPG скринов)
+    // 3. БАЗОВАЯ ЛОГИКА (Уникальные ID для фигурок, восстановление прогресса)
     document.querySelectorAll('.marker.piece').forEach((marker, index) => {
-        // Автоматически даем ID, если его нет в HTML
-        if (!marker.id) marker.id = 'p' + (index + 1);
+        if (!marker.id) marker.id = 'piece_' + (index + 1);
         
-        // Восстанавливаем сохраненный прогресс из памяти браузера
         if (localStorage.getItem(marker.id) === 'collected') {
             marker.classList.add('collected');
         }
@@ -539,7 +532,6 @@
             event.stopPropagation(); 
             if (event.target.tagName === 'IMG') return;
 
-            // Переключение статуса: Клик по тыкве (собрано / не собрано)
             if (clickedMarker.classList.contains('collected')) {
                 clickedMarker.classList.remove('collected');
                 localStorage.removeItem(clickedMarker.id); 
@@ -548,52 +540,46 @@
                 localStorage.setItem(clickedMarker.id, 'collected'); 
             }
 
-            // Сразу обновляем цифры в счетчике после переключения класса
             updateCounter();
 
-            // ПРОВЕРКА НА RESPECT: Если после клика собраны абсолютно все тыквы
-            const totalItems = document.querySelectorAll('.marker.piece').length;
-            const collectedItems = document.querySelectorAll('.marker.piece.collected').length;
+            // ПРОВЕРКА НА RESPECT (считаем с учетом двойной метки!)
+            const totalItems = getPiecesCount('.marker.piece');
+            const collectedItems = getPiecesCount('.marker.piece.collected');
             if (collectedItems === totalItems && totalItems > 0) {
                 triggerRespectEffect();
             }
 
-            // Открытие скриншота весом 40 КБ и подмена data-src на src (Lazy Loading)
+            // Открытие скриншота и Lazy Loading
             if (clickedMarker.classList.contains('show-screenshot')) {
                 clickedMarker.classList.remove('show-screenshot');
             } else {
-                // Сначала закрываем скриншоты у всех остальных тыкв
                 document.querySelectorAll('.marker.piece').forEach(m => m.classList.remove('show-screenshot'));
                 
-                // Загружаем картинку только в момент открытия
                 const img = clickedMarker.querySelector('img');
                 if (img && img.getAttribute('data-src')) {
                     img.src = img.getAttribute('data-src');
-                    img.removeAttribute('data-src'); // Убираем атрибут, чтобы не перезагружать повторно
+                    img.removeAttribute('data-src');
                 }
                 clickedMarker.classList.add('show-screenshot');
             }
 
         } else {
-            // Клик мимо тыквы — закрыть все открытые скриншоты
+            // Клик мимо метки — закрыть все скриншоты
             document.querySelectorAll('.marker.piece').forEach(marker => {
                 marker.classList.remove('show-screenshot');
             });
 
-            // Код для разработчика (Генерация новых точек в F12 при клике на карту)
+            // Генератор новых точек в консоли (F12)
             const rect = mapContainer.getBoundingClientRect();
             const left = (((event.clientX - rect.left) / scale) / 684 * 100).toFixed(1);
             const top = (((event.clientY - rect.top) / scale) / 1017 * 100).toFixed(1);
             const nextIndex = document.querySelectorAll('.marker.piece').length + 1;
             
-            console.log(`<div class="marker piece" style="left: ${left}%; top: ${top}%;" data-title="Тыква ${nextIndex}"><img data-src="./pieces/${nextIndex}.jpg" alt="в работе"></div>`);
+            console.log(`<div class="marker piece" id="piece_${nextIndex}" style="left: ${left}%; top: ${top}%;" data-title="Фигурка ${nextIndex}"><img data-src="./pieces/${nextIndex}.jpg" alt="в работе"></div>`);
             
-            // Обновляем счетчик на случай, если вы скопируете новую точку прямо в DOM через инспектор
             updateCounter();
         }
     });
 </script>
-
-
 </body>
 </html>
