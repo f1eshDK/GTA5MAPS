@@ -78,7 +78,7 @@
             border-radius: 10px;
             padding: 25px 20px;
             width: 240px;
-            min-height: 130px;
+            min-height: 85px;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -113,9 +113,17 @@
         .map-card p {
             margin: 0;
             font-size: 14px;
-            color: var(--card-text); /* Мягкий оттенок цвета для описания */
+            color: var(--card-text);
             line-height: 1.4;
         }
+
+        /* Стиль для счетчика собранных предметов */
+        .progress-text {
+            font-weight: 600;
+            letter-spacing: 0.4px;
+            color: #e2e8f0;
+        }
+
 
         /* ==========================================
            ИНДИВИДУАЛЬНЫЕ ЦВЕТА ДЛЯ КАЖДОЙ КАРТЫ
@@ -141,8 +149,8 @@
 
         /* Фигурки — голубой / синий */
         .theme-piece {
-            --card-accent: #ff4da6;
-            --card-text: #a787a5;
+            --card-accent: #ff2a85;
+            --card-text: #ffd1e8;
         }
 
         /* Закладки LD Organics — фирменный зеленый */
@@ -150,6 +158,7 @@
             --card-accent: #36cc18;
             --card-text: #c8f5bf;
         }
+
     </style>
 </head>
 <body>
