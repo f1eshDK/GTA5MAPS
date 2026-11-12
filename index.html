@@ -4,107 +4,223 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GTA5MAPS</title>
-    <link rel="icon" type="image/x-icon" href="favicon.png">
     <style>
+        @font-face {
+            font-family: 'Pricedown';
+            src: url('./fonts/pricedown.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
         body {
             margin: 0;
             padding: 40px 20px;
-            background-color: rgb(58, 75, 82); /* Цвет океана как на вашей карте */
-            font-family: Arial, sans-serif;
+            background-color: #2b3940; /* Нейтральный темный цвет океана GTA V */
+            font-family: 'Rubik', Arial, sans-serif;
             color: white;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 80vh;
+            min-height: 85vh;
         }
 
+        /* Главный заголовок в фирменном стиле GTA V */
         h1 {
-            margin-bottom: 30px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            font-family: 'Pricedown', 'Arial Black', sans-serif;
+            font-size: 50px;
+            font-weight: normal;
+            letter-spacing: 2.5px;
+            margin-bottom: 40px;
             text-align: center;
+            color: #ffffff;
+            text-shadow: 
+                -3px -3px 0 #000000,
+                 3px -3px 0 #000000,
+                -3px  3px 0 #000000,
+                 3px  3px 0 #000000,
+                 0px -3px 0 #000000,
+                 0px  3px 0 #000000,
+                -3px  0px 0 #000000,
+                 3px  0px 0 #000000,
+                -4.5px -4.5px 0 #36cc18,
+                 4.5px -4.5px 0 #36cc18,
+                -4.5px  4.5px 0 #36cc18,
+                 4.5px  4.5px 0 #36cc18,
+                 0px   -4.5px 0 #36cc18,
+                 0px    4.5px 0 #36cc18,
+                -4.5px  0px   0 #36cc18,
+                 4.5px  0px   0 #36cc18;
         }
 
-        /* Контейнер для кнопок-карт */
+        h1 span {
+            color: #36cc18;
+        }
+
         .maps-grid {
             display: flex;
             gap: 20px;
             flex-wrap: wrap;
             justify-content: center;
-            max-width: 800px;
+            max-width: 900px;
             width: 100%;
         }
 
-        /* Стиль карточки/кнопки */
+        /* Базовый стиль карточки (использует CSS-переменные цвета) */
         .map-card {
-            background: rgba(20, 20, 20, 0.85);
-            border: 2px solid #ff8c00; /* Оранжевый цвет как у ваших меток */
-            border-radius: 8px;
-            padding: 25px;
-            width: 260px;
+            /* Цвета по умолчанию, если не заданы индивидуальные */
+            --card-accent: #36cc18;
+            --card-text: #cfd8dc;
+
+            background: rgba(18, 22, 25, 0.9);
+            border: 2px solid #45565e;
+            border-radius: 10px;
+            padding: 25px 20px;
+            width: 240px;
+            min-height: 130px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
             text-align: center;
             text-decoration: none;
             color: white;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            transition: transform 0.2s ease, background-color 0.2s ease;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+            transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
         }
 
-        /* Эффект при наведении */
+        /* При наведении рамка и тень окрашиваются в цвет конкретной карты */
         .map-card:hover {
             transform: translateY(-5px);
-            background: rgba(40, 40, 40, 0.95);
+            background: rgba(25, 30, 35, 0.98);
+            border-color: var(--card-accent);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6);
             cursor: pointer;
         }
 
         .map-card h2 {
-            margin: 0 0 10px 0;
-            font-size: 20px;
-            color: #ff8c00;
+            font-family: 'Pricedown', 'Arial Black', sans-serif;
+            font-weight: normal;
+            letter-spacing: 1px;
+            margin: 0 0 12px 0;
+            font-size: 26px;
+            line-height: 1.15;
+            color: var(--card-accent); /* Цвет заголовка берется из темы карточки */
+            -webkit-text-stroke: 3px #000000;
+            paint-order: stroke fill;
         }
 
         .map-card p {
             margin: 0;
             font-size: 14px;
-            color: #ccc;
+            color: var(--card-text); /* Мягкий оттенок цвета для описания */
             line-height: 1.4;
+        }
+
+        /* ==========================================
+           ИНДИВИДУАЛЬНЫЕ ЦВЕТА ДЛЯ КАЖДОЙ КАРТЫ
+           ========================================== */
+        
+        /* Тыквы — оранжевый */
+        .theme-pumpkin {
+            --card-accent: #ff7b00;
+            --card-text: #ffd6b0;
+        }
+
+        /* Игральные карты — красный */
+        .theme-cards {
+            --card-accent: #0051ff;
+            --card-text: #c4d9ff;
+        }
+
+        /* Призраки — фиолетовый (как в вашем коде #782092, но чуть ярче для читаемости) */
+        .theme-ghost {
+            --card-accent: #b86bff;
+            --card-text: #e2c7ff;
+        }
+
+        /* Фигурки — голубой / синий */
+        .theme-piece {
+            --card-accent: #ff4da6;
+            --card-text: #a787a5;
+        }
+
+        /* Закладки LD Organics — фирменный зеленый */
+        .theme-ld {
+            --card-accent: #36cc18;
+            --card-text: #c8f5bf;
         }
     </style>
 </head>
 <body>
 
-    <h1>Интерактивные карты GTA 5</h1>
+    <h1>Интерактивные карты GTA <span>V</span></h1>
 
     <div class="maps-grid">
         <!-- КАРТА с тыквами -->
-        <a href="./pumpkin.html" class="map-card">
-            <h2>Карта с тыквами</h2>
-            <p>Интерактивная карта с точным расположением всех праздничных тыкв</p>
+        <a href="./pumpkin.html" class="map-card theme-pumpkin" data-key="pumpkin_" data-total="200">
+            <h2>тыквы</h2>
+            <p class="progress-text">Собрано: 0 / 200</p>
         </a>
 
         <!-- КАРТА с игральными картами -->
-        <a href="./cards.html" class="map-card">
-            <h2>Карта с игральными картами</h2>
-            <p>Интерактивная карта с точным расположением всех игральных карт.</p>
+        <a href="./cards.html" class="map-card theme-cards" data-key="card_" data-total="54">
+            <h2>игральные карты</h2>
+            <p class="progress-text">Собрано: 0 / 54</p>
         </a>
 
-        <!-- КАРТА с игральными картами -->
-        <a href="./ghost.html" class="map-card">
-            <h2>Карта с призраками</h2>
-            <p>Интерактивная карта с точным расположением всех призраков</p>
+        <!-- КАРТА с призраками -->
+        <a href="./ghost.html" class="map-card theme-ghost" data-key="ghost_" data-total="10">
+            <h2>призраки</h2>
+            <p class="progress-text">Собрано: 0 / 10</p>
         </a>
 
         <!-- КАРТА с фигурками -->
-        <a href="./piece.html" class="map-card">
-            <h2>Карта с фигурками</h2>
-            <p>Интерактивная карта с точным расположением всех фигурок</p>
+        <a href="./piece.html" class="map-card theme-piece" data-key="piece_" data-total="99">
+            <h2>фигурки</h2>
+            <p class="progress-text">Собрано: 0 / 100</p>
         </a>
 
         <!-- КАРТА с закладками -->
-        <a href="./LD.html" class="map-card">
-            <h2>Карта с закладками LD Organics</h2>
-            <p>Интерактивная карта с точным расположением всех закладок</p>
+        <a href="./LD.html" class="map-card theme-ld" data-key="LD_" data-total="100">
+            <h2>LD Organics</h2>
+            <p class="progress-text">Собрано: 0 / 100</p>
         </a>
     </div>
 
+
 </body>
+
+<script>
+    function updateMainPageProgress() {
+        document.querySelectorAll('.map-card').forEach(card => {
+            const prefix = card.getAttribute('data-prefix');
+            const total = Number(card.getAttribute('data-total'));
+            const textElement = card.querySelector('.progress-text');
+
+            let count = 0;
+
+            // Перебираем всю память браузера и ищем ключи с нужным префиксом и значением 'collected'
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith(prefix) && localStorage.getItem(key) === 'collected') {
+                    count++;
+                }
+            }
+
+            // Выводим актуальный счетчик под названием карты
+            if (count >= total && total > 0) {
+                textElement.textContent = `✔ Собрано: ${count} / ${total}`;
+                textElement.style.fontWeight = 'bold';
+            } else {
+                textElement.textContent = `Собрано: ${count} / ${total}`;
+            }
+        });
+    }
+
+    // Запускаем подсчет при открытии главной страницы и при возврате на нее кнопкой «Назад»
+    updateMainPageProgress();
+    window.addEventListener('pageshow', updateMainPageProgress);
+</script>
+
+
 </html>
